@@ -226,8 +226,8 @@ class App(tk.Tk):
     @staticmethod
     def _voice_note(v):
         if v["engine"] == "edge":
-            return ("Online voice (Microsoft Edge service): needs internet, nothing to "
-                    "download. Good for quick previews; unofficial service, may change.")
+            return ("Online preview voice (Microsoft Edge, unofficial): your text is sent to Microsoft. "
+                    "Needs internet; may stop working. For finished material use a Kokoro or Piper voice.")
         if core.is_ready(v):
             return "Installed - works offline."
         size = "about 350 MB, shared by all Kokoro voices" if v["engine"] == "kokoro" else "about 20-120 MB"

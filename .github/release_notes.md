@@ -6,8 +6,12 @@
 | Mac | `LocalTTS-macos.zip` | Unzip, move **LocalTTS** to Applications. The first time: right-click it, choose **Open**, then **Open** again (the app is not signed by Apple). |
 | Linux | `LocalTTS-linux.tar.gz` | Unpack, then run `./LocalTTS`. |
 
-The first start takes a few seconds. Voices download the first time you use them; Edge voices need
-internet. See the README for how to use the app.
+The first start takes a few seconds. Offline voices (Kokoro, Piper) download once the first time you
+use them, then work without internet. See the README for how to use the app.
+
+**About "Edge (online)" voices:** they are meant for quick previews only. They use an unofficial
+Microsoft service: your text is sent to Microsoft, the service may stop working, and the voices are
+not licensed for publishing. Use Kokoro or Piper voices for finished material.
 
 ## Licenses and source code
 

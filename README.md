@@ -27,8 +27,9 @@ Piper (all languages; offline) and Edge (online preview voices, all languages ex
    Otherwise choose it yourself.
 2. The box below shows what was found: title, number of pages, language, pages without
    narration - or, in red, why the script and PDF do not match (see below).
-3. Language and voice are preset from the script's language. **Edge (online)** voices are
-   the quick default; Kokoro/Piper voices work offline. The app remembers your choice per language.
+3. Language and voice are preset from the script's language, with an **offline** voice (Kokoro or
+   Piper; downloads once on first use). **Edge (online)** voices can be chosen for quick previews.
+   The app remembers your choice per language.
 4. Pick the **Video size** (480p, 720p, 1080p, 1440p or 2160p/4K - the width follows the slide shape),
    how long pages **without narration** are shown (default 2.5 s, silent; **0 = leave them out of the video**), and where to save.
 5. **Make video**, or **Add to batch** to make it later together with other items. **Stop** cancels.
@@ -61,7 +62,7 @@ Command line (same engine, for scripts and testing):
 
     python lecture_video.py --pdf 01_intro.pdf                 # finds 01_intro.script.json
     python lecture_video.py --pdf a.pdf --script a.json --height 1080 --voice p:de_DE-thorsten-medium
-    python lecture_video.py --pdf a.pdf --offline --silent-hold 3
+    python lecture_video.py --pdf a.pdf --online --silent-hold 3      # Edge preview voice
 
 Video encoding uses an ffmpeg program bundled with the app (`imageio-ffmpeg`), and the PDF is
 drawn with `pypdfium2` - nothing extra has to be installed.
@@ -98,11 +99,16 @@ writes one WAV or MP3 per item (named `001_de_Thorsten_first_words.wav`, or your
 Items are processed grouped by voice so each voice loads only once; one failing item does not
 stop the rest, and **Stop** cancels the run. The batch list is saved between sessions.
 
-## Edge voices (quick previews)
+## Edge voices (quick previews only)
 Voices marked "Edge (online)" use Microsoft's online read-aloud service through `edge-tts`:
-instant, nothing to download, many natural voices - but they need internet, run on
-Microsoft's servers (your text leaves your computer), and the service is unofficial, so it can
-change or stop working. Use the Kokoro/Piper voices for offline work and final output.
+instant, nothing to download, many natural voices. But:
+- **Your text is sent to Microsoft's servers.** Do not use them for personal or confidential text
+  (data protection / GDPR).
+- The service is **unofficial** (the Edge browser's read-aloud feature, not a licensed API). It can
+  change or stop working at any time, and the voices are not licensed for publishing.
+- Use **Kokoro or Piper** voices for finished or published material. They run on your computer;
+  check the license of the Piper voice you use (see `THIRD_PARTY_NOTICES.md`).
+Offline voices are therefore the default everywhere; Edge voices are only used if you pick one.
 
 ## "Computer load" setting
 | Setting  | What it does |

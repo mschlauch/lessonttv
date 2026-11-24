@@ -138,16 +138,17 @@ class Helpers(unittest.TestCase):
         self.assertEqual(lv.language_code("it-IT"), "it")
         self.assertEqual(lv.language_code("nb-NO"), "no")
         self.assertIsNone(lv.language_code("ja-JP"))
-        self.assertEqual(lv.default_voice("lb-LU")["engine"], "piper")      # no online voice exists
+        self.assertEqual(lv.default_voice("lb-LU", "edge")["engine"], "piper")      # no online voice exists
         self.assertEqual(lv.default_voice("it-IT", "offline")["id"], "k:if_sara")
         self.assertIsNone(lv.language_code(""))
-        self.assertEqual(lv.default_voice("en-GB")["id"], "e:en-GB-SoniaNeural")
-        self.assertEqual(lv.default_voice("de-DE")["engine"], "edge")
+        self.assertEqual(lv.default_voice("en-GB", "edge")["id"], "e:en-GB-SoniaNeural")
+        self.assertEqual(lv.default_voice("de-DE", "edge")["engine"], "edge")
+        self.assertNotEqual(lv.default_voice("de-DE")["engine"], "edge")     # offline is the default
         self.assertEqual(lv.default_voice("en-GB", "offline")["lang"], "en-gb")
         self.assertEqual(lv.default_voice("de-DE", "offline")["engine"], "piper")
         for code, _ in core.LANGUAGES:
             self.assertIsNotNone(lv.default_voice(code))
-            self.assertIsNotNone(lv.default_voice(code, "offline"))
+            self.assertIsNotNone(lv.default_voice(code, "edge"))
 
     def test_page_times_do_not_drift(self):
         rate = 24000

@@ -184,8 +184,9 @@ def language_code(bcp47):
     return prim if prim in core.VOICES else None
 
 
-def default_voice(bcp47, engine="edge"):
-    """Pick a voice for the script language. engine 'edge' (online) or 'offline'."""
+def default_voice(bcp47, engine="offline"):
+    """Pick a voice for the script language. engine 'offline' (Kokoro/Piper, the default:
+    runs locally) or 'edge' (online preview voice, text goes to Microsoft)."""
     code = language_code(bcp47)
     if not code:
         return None
@@ -691,7 +692,10 @@ def main(argv=None):
     ap.add_argument("--script", help="script JSON (default: found next to the PDF)")
     ap.add_argument("--out", help="output MP4 (default: next to the PDF)")
     ap.add_argument("--voice", help="voice id, e.g. e:de-DE-KatjaNeural, k:af_heart, p:de_DE-thorsten-medium")
-    ap.add_argument("--offline", action="store_true", help="use the default offline voice instead of Edge")
+    ap.add_argument("--online", action="store_true",
+                    help="use the online Edge preview voice instead of the default offline voice "
+                         "(unofficial Microsoft service; the text is sent to Microsoft)")
+    ap.add_argument("--offline", action="store_true", help=argparse.SUPPRESS)   # old flag; offline is the default now
     ap.add_argument("--height", type=int, default=DEFAULT_HEIGHT, help="video height in pixels (default 720)")
     ap.add_argument("--speed", type=float, default=1.0)
     ap.add_argument("--silent-hold", type=float, default=SILENT_HOLD,
@@ -704,7 +708,7 @@ def main(argv=None):
     try:
         script = load_script(script_path)
         lang = script["meta"].get("language", "")
-        voice = core.VOICE_BY_ID.get(a.voice) if a.voice else default_voice(lang, "offline" if a.offline else "edge")
+        voice = core.VOICE_BY_ID.get(a.voice) if a.voice else default_voice(lang, "edge" if a.online else "offline")
         if not voice:
             sys.exit(f"No voice for language {lang!r}; pass --voice (ids are in localtts_core.VOICES).")
         synth = core.Synth()
