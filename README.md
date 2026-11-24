@@ -119,9 +119,11 @@ Piper voices need about 0.2 GB.
 ## Build a double-click app
 - **Linux / macOS:** `./build.sh`   **Windows:** `build.bat`   (result in `dist/`)
 - Put the project in a folder path **without spaces or parentheses** (PyInstaller fails otherwise).
-- A build only runs on the OS it was built on. To build all three without owning them,
-  run the "Build LocalTTS" workflow on GitHub (Actions tab > Run workflow, or push a tag
-  like `v1.0`); download the three results from the run page.
+- A build only runs on the OS it was built on. To build all three without owning them, use
+  GitHub: **push a tag** like `v1.0` (`git tag v1.0 && git push origin v1.0`). The workflow builds and
+  tests all three, then creates a **GitHub Release** with `LocalTTS-windows.exe`, `LocalTTS-macos.zip`
+  and `LocalTTS-linux.tar.gz` - a page you can send to colleagues. If any platform fails, no release
+  is made. ("Run workflow" in the Actions tab only builds, without a release.)
 - The workflow first runs `tests/test_lecture_video.py`, then builds, then starts the
   **built app itself** with `--selftest` (it makes a tiny video with a stand-in voice, using the
   bundled ffmpeg, PDF renderer and speech process). A red run means that platform's app is broken.
@@ -133,10 +135,13 @@ Voices are stored in `~/.localtts/`. To ship them with the app, copy that folder
 `kokoro/` and `piper/` subfolders into a `models/` folder next to the app.
 
 ## Licenses
-The Lithuanian voice uses a phonemizer copied from Piper's development branch (GPL-3.0,
-in `localtts_lt/`); its stress dictionary is CC-BY-4.0 (liepa-tts corpus and
-svogunas/g2p-lt-lexicon). Keep that attribution if you redistribute.
+LocalTTS is licensed under the GNU GPL v3 (`LICENSE`). The packaged app contains components under
+other (GPL-compatible) licenses, among them FFmpeg (GPL v3) and Piper (GPL v3); see
+`THIRD_PARTY_NOTICES.md`, which is also attached to every release.
 
-`piper-tts` is GPL-3.0, so distributing a build that includes it means distributing under
-GPL terms (include the source). Kokoro is Apache-2.0. Each Piper voice has its own license
-(see its model card on Hugging Face) - check before commercial use.
+Voices are downloaded at run time and each has its own license: Kokoro is Apache-2.0; Piper voices
+vary (see each voice's MODEL_CARD on Hugging Face - some are non-commercial); Edge voices use
+Microsoft's online service unofficially. Check before publishing audio commercially.
+
+The Lithuanian phonemizer in `localtts_lt/` is GPL-3.0 (from Piper's development branch); its stress
+dictionary is CC-BY-4.0 (liepa-tts corpus and svogunas/g2p-lt-lexicon). Keep that attribution.

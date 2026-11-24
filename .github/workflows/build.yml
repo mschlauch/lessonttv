@@ -1,7 +1,8 @@
 name: Build LocalTTS (with Lecture video)
 
 # Builds the app for Windows, macOS and Linux on GitHub's servers.
-# Start it from the repository's Actions tab ("Run workflow"), or push a tag like v1.0.
+# - "Run workflow" (Actions tab): build + test; the files are attached to the run (log-in needed, kept 90 days).
+# - Push a tag like v1.0: the same, then a public GitHub Release with the three downloads is created.
 on:
   workflow_dispatch:
   push:
@@ -16,12 +17,15 @@ jobs:
           - os: windows-latest
             name: windows
             flags: "--onefile --windowed"
+            file: dist/LocalTTS.exe
           - os: macos-latest
             name: macos
             flags: "--windowed"
+            file: dist/LocalTTS-macos.zip
           - os: ubuntu-22.04      # older Linux = runs on more distributions
             name: linux
             flags: "--onefile"
+            file: dist/LocalTTS
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -56,12 +60,39 @@ jobs:
         run: code=0; dist/LocalTTS --selftest "$PWD/selftest" || code=$?; cat selftest/selftest.txt; exit $code
       - name: Package macOS app
         if: runner.os == 'macOS'
-        run: cd dist && zip -r LocalTTS-macos.zip LocalTTS.app
+        # ditto keeps the symlinks and permissions inside the .app bundle (zip -r does not)
+        run: cd dist && ditto -c -k --keepParent LocalTTS.app LocalTTS-macos.zip
       - uses: actions/upload-artifact@v4
         with:
           name: LocalTTS-${{ matrix.name }}
-          path: |
-            dist/LocalTTS.exe
-            dist/LocalTTS
-            dist/LocalTTS-macos.zip
+          path: ${{ matrix.file }}
           if-no-files-found: error
+
+  release:
+    needs: build                  # only if all three builds and self-tests passed
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect the downloads
+        run: |
+          mkdir release
+          cp artifacts/LocalTTS-windows/LocalTTS.exe release/LocalTTS-windows.exe
+          cp artifacts/LocalTTS-macos/LocalTTS-macos.zip release/LocalTTS-macos.zip
+          chmod +x artifacts/LocalTTS-linux/LocalTTS
+          tar -C artifacts/LocalTTS-linux -czf release/LocalTTS-linux.tar.gz LocalTTS
+          cp LICENSE release/LICENSE.txt
+          cp THIRD_PARTY_NOTICES.md release/THIRD_PARTY_NOTICES.md
+          (cd release && sha256sum * > SHA256SUMS.txt)
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" release/*
+          --repo "$GITHUB_REPOSITORY" --title "LocalTTS $GITHUB_REF_NAME"
+          --notes-file .github/release_notes.md --generate-notes
