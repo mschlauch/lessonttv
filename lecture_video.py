@@ -18,8 +18,9 @@ How it works
   5. Encode with the ffmpeg program that ships inside the imageio-ffmpeg package, so
      nobody has to install ffmpeg. The PDF is drawn with pypdfium2 (also bundled).
 
-Pages with empty narration are shown for a fixed time (default 2.5 s) with silence.
-The fields comment and prompt_note are never spoken (prompt_note is ignored for now).
+Pages with empty narration are shown for a time the user sets (default 2.5 s) with silence;
+0 seconds leaves them out of the video completely.
+The fields comment and prompt_note are never read: they have no effect on the video.
 """
 import os
 import re
@@ -551,6 +552,15 @@ def make_video(pdf_path, script_path, out_mp4, voice, synth, *, speed=1.0, heigh
         used.add(os.path.basename(path))
         entries.append((path, 0.0))
 
+    # Silent pages with a hold of 0 s are left out of the video completely.
+    keep = [k for k, (path, hold) in enumerate(entries) if path or hold > 0]
+    if not keep:
+        raise ScriptError("Every page is silent and pages without narration are set to 0 seconds, "
+                          "so the video would be empty.")
+    pages_kept = [pages[k] for k in keep]
+    images, entries = [images[k] for k in keep], [entries[k] for k in keep]
+    skipped = [p["pdf_page"] for p in pages if p not in pages_kept]
+
     audio = os.path.join(wd, "soundtrack.wav")
     prog(R + S, "Joining the audio...")
     counts, rate = build_soundtrack(entries, audio)
@@ -564,7 +574,7 @@ def make_video(pdf_path, script_path, out_mp4, voice, synth, *, speed=1.0, heigh
     got = media_duration(out_mp4)
     if abs(got - total) > 0.25:
         warnings.append(f"The finished video is {got:.2f} s long, but the audio is {total:.2f} s.")
-    parts_dir = save_page_audio(out_mp4, pages, entries)
+    parts_dir = save_page_audio(out_mp4, pages_kept, entries)
 
     for name in os.listdir(audio_dir) if os.path.isdir(audio_dir) else []:   # keep the cache small
         if name not in used:
@@ -574,7 +584,7 @@ def make_video(pdf_path, script_path, out_mp4, voice, synth, *, speed=1.0, heigh
     prog(1.0, "Done.")
     return dict(out=out_mp4, seconds=got, pages=n, silent=silent, size=size, spoken=spoken_new,
                 cached=n - len(silent) - spoken_new, warnings=warnings,
-                page_seconds=[c / rate for c in counts], audio_dir=parts_dir)
+                page_seconds=[c / rate for c in counts], audio_dir=parts_dir, skipped=skipped)
 
 
 def page_audio_dir(out_mp4):
@@ -683,7 +693,7 @@ def main(argv=None):
     ap.add_argument("--height", type=int, default=DEFAULT_HEIGHT, help="video height in pixels (default 720)")
     ap.add_argument("--speed", type=float, default=1.0)
     ap.add_argument("--silent-hold", type=float, default=SILENT_HOLD,
-                    help="seconds to show a page that has no narration (default 2.5)")
+                    help="seconds to show a page that has no narration (default 2.5; 0 = leave it out)")
     ap.add_argument("--level", choices=["light", "balanced", "fast"], default="balanced")
     a = ap.parse_args(argv)
     script_path = a.script or find_script_for_pdf(a.pdf)
@@ -714,7 +724,8 @@ def main(argv=None):
           f"voice {voice['id']})")
     print(f"Page audio: {res['audio_dir']}")
     if res["silent"]:
-        print(f"Pages without narration (shown {a.silent_hold:g} s each): {_short_list(res['silent'])}")
+        how = "left out" if a.silent_hold <= 0 else f"shown {a.silent_hold:g} s each"
+        print(f"Pages without narration ({how}): {_short_list(res['silent'])}")
     for w in res["warnings"]:
         print("Warning:", w)
 

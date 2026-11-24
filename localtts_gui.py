@@ -562,8 +562,8 @@ class App(tk.Tk):
                                                                           sticky="w", padx=6, pady=3)
         hold = ttk.Frame(of)
         hold.grid(row=1, column=2, columnspan=2, sticky="w")
-        ttk.Spinbox(hold, from_=0.5, to=30, increment=0.5, width=5, textvariable=self.v_hold).pack(side="left")
-        ttk.Label(hold, text="seconds (silent)").pack(side="left", padx=4)
+        ttk.Spinbox(hold, from_=0, to=60, increment=0.5, width=5, textvariable=self.v_hold).pack(side="left")
+        ttk.Label(hold, text="seconds, silent (0 = leave these pages out)").pack(side="left", padx=4)
         ttk.Label(of, text="Save video as").grid(row=2, column=0, sticky="w", padx=6, pady=(3, 6))
         ttk.Entry(of, textvariable=self.v_out).grid(row=2, column=1, columnspan=2, sticky="we", padx=4)
         b_out = ttk.Button(of, text="Choose...", command=self._v_pick_out)
@@ -674,7 +674,7 @@ class App(tk.Tk):
                  f"language {s['language'] or '(not set)'}, roughly {est // 60}:{est % 60:02d} min of speech."]
         if s["silent"]:
             lines.append(f"{len(s['silent'])} page(s) without narration ({lv._short_list(s['silent'])}) "
-                         "are shown silently for the time set below.")
+                         "are shown silently for the time set below (0 seconds leaves them out).")
         code = lv.language_code(s["language"])
         if new_script:
             if code:
@@ -702,10 +702,10 @@ class App(tk.Tk):
         self.v_out.set(out)
         try:
             hold = float(self.v_hold.get().replace(",", "."))
-            if not 0.1 <= hold <= 60:
+            if not 0 <= hold <= 60:
                 raise ValueError
         except ValueError:
-            messagebox.showerror(title, "Enter a time between 0.1 and 60 seconds for pages without narration.")
+            messagebox.showerror(title, "Enter a time between 0 and 60 seconds for pages without narration (0 leaves them out).")
             return None
         return dict(pdf=pdf, js=js, out=out, hold=hold, voice=self._v_current_voice(),
                     speed=self.v_speed.get(), height=self._v_height())
@@ -766,7 +766,9 @@ class App(tk.Tk):
         msg = [f"Saved {os.path.basename(res['out'])}",
                f"Length {secs // 60}:{secs % 60:02d} min, {res['size'][0]} x {res['size'][1]} pixels, "
                f"{res['pages']} pages."]
-        if res["silent"]:
+        if res["skipped"]:
+            msg.append(f"Left out (no narration): pages {lv._short_list(res['skipped'])}.")
+        elif res["silent"]:
             msg.append(f"Pages without narration: {lv._short_list(res['silent'])}.")
         msg.append(f"Page audio: {os.path.basename(res['audio_dir'])}/ (next to the video).")
         msg += res["warnings"]

@@ -12,8 +12,8 @@ for the app itself). Read those first.
 ## Decisions (made with the project owner)
 - Engine: any LocalTTS voice; default is the Edge voice for the script language, user can pick
   Kokoro/Piper. Preference is remembered per language (`settings.json` -> `video_voices`).
-- Silent pages: shown for a fixed time (default 2.5 s, set in the GUI / `--silent-hold`), with silence.
-- `prompt_note`, `comment`: ignored. Never spoken, never shown.
+- Silent pages: shown for a time set in the GUI / `--silent-hold` (default 2.5 s), with silence; 0 leaves them out of the video entirely (they also get no page audio file).
+- `prompt_note`, `comment`: never read by the code - no effect at all.
 - Resolution selectable (480/720/1080/1440 p height; width from the first page's aspect ratio,
   other page shapes are centred on white).
 - Output: `<pdf stem>.mp4` next to the PDF by default. Work files: `~/.localtts/video_work/<stem>-<hash>/`

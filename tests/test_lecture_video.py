@@ -250,6 +250,33 @@ class EndToEnd(unittest.TestCase):
             lv.EDGE_PAUSE = old
             os.environ.pop("LOCALTTS_EDGE_MOCK", None)
 
+    def test_silent_pages_left_out(self):
+        os.environ["LOCALTTS_EDGE_MOCK"] = edge_mock_mp3()
+        old = lv.EDGE_PAUSE
+        lv.EDGE_PAUSE = 0
+        try:
+            res, d, pdf, js = self.run_job("e:en-US-AriaNeural", ["One.", "", "Three.", ""], silent_hold=0)
+            self.assertEqual(res["skipped"], [2, 4])
+            self.assertEqual(len(res["page_seconds"]), 2)
+            self.assertAlmostEqual(res["seconds"], sum(res["page_seconds"]), delta=0.1)
+            out = os.path.join(d, "deck.mp4")
+            size = lv.frame_size(pdf, 360)
+            t1 = res["page_seconds"][0]
+            self.assertTrue(close(frame_color(out, t1 - 0.1, size), COLORS[0]))
+            self.assertTrue(close(frame_color(out, t1 + 0.1, size), COLORS[2]))     # page 2 is gone
+            self.assertEqual(sorted(os.listdir(res["audio_dir"])), ["page_001_Page_1.wav", "page_003_Page_3.wav"])
+            make_script(js, ["", ""])
+            make_pdf(pdf, 2)
+            synth = core.Synth()
+            try:
+                with self.assertRaises(lv.ScriptError):
+                    lv.make_video(pdf, js, out, "e:en-US-AriaNeural", synth, height=360, silent_hold=0)
+            finally:
+                synth.stop()
+        finally:
+            lv.EDGE_PAUSE = old
+            os.environ.pop("LOCALTTS_EDGE_MOCK", None)
+
     def test_cancel(self):
         os.environ["LOCALTTS_EDGE_MOCK"] = edge_mock_mp3()
         d = tempfile.mkdtemp(dir=TMP)

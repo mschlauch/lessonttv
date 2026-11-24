@@ -27,7 +27,7 @@ and Piper (all of the above).
 3. Language and voice are preset from the script's language. **Edge (online)** voices are
    the quick default; Kokoro/Piper voices work offline. The app remembers your choice per language.
 4. Pick the **Video size** (480p, 720p, 1080p, 1440p or 2160p/4K - the width follows the slide shape),
-   how long pages **without narration** are shown (default 2.5 s, silent), and where to save.
+   how long pages **without narration** are shown (default 2.5 s, silent; **0 = leave them out of the video**), and where to save.
 5. **Make video**, or **Add to batch** to make it later together with other items. **Stop** cancels.
    When it is done you can play it or show it in its folder.
 
@@ -45,7 +45,7 @@ not exactly 1, 2, ... N (duplicates or gaps). It never guesses a mapping. If the
 different PDF file but everything else matches, it only warns.
 
 Spoken: `narration` only (invisible and control characters are removed first). Never used:
-`comment`, `prompt_note` (reserved for a later AI rewriting step), `title`, `slide_label`.
+`comment`, `prompt_note`, `title`, `slide_label` (they have no effect on the video).
 
 Speeding up re-runs: each page's audio is kept in `~/.localtts/video_work/`, so after editing
 the narration of one page only that page is spoken again. That folder can be deleted at any time.
