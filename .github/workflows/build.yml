@@ -1,0 +1,65 @@
+name: Build LocalTTS (with Lecture video)
+
+# Builds the app for Windows, macOS and Linux on GitHub's servers.
+# Start it from the repository's Actions tab ("Run workflow"), or push a tag like v1.0.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            flags: "--onefile --windowed"
+          - os: macos-latest
+            name: macos
+            flags: "--windowed"
+          - os: ubuntu-22.04      # older Linux = runs on more distributions
+            name: linux
+            flags: "--onefile"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Linux GUI libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk tk-dev
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyinstaller
+      - name: Test the lecture video engine
+        run: python tests/test_lecture_video.py
+      - name: Build
+        run: python -m PyInstaller ${{ matrix.flags }} --name LocalTTS --collect-all piper --collect-all kokoro_onnx --collect-all espeakng_loader --collect-all phonemizer --collect-all language_tags --collect-all localtts_lt --collect-all edge_tts --collect-all soundfile --collect-all _soundfile_data --collect-all imageio_ffmpeg --collect-all pypdfium2 --collect-all pypdfium2_raw localtts_gui.py
+      # Runs the packaged app itself: makes a tiny video with the bundled ffmpeg, PDF renderer and
+      # speech process (no network, stand-in voice). Fails the build if the shipped app can't do it.
+      - name: Self-test the built app (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\LocalTTS.exe -ArgumentList '--selftest', "$PWD\selftest" -Wait -PassThru
+          Get-Content selftest\selftest.txt
+          if ($p.ExitCode -ne 0) { exit 1 }
+      - name: Self-test the built app (macOS)
+        if: runner.os == 'macOS'
+        run: code=0; dist/LocalTTS.app/Contents/MacOS/LocalTTS --selftest "$PWD/selftest" || code=$?; cat selftest/selftest.txt; exit $code
+      - name: Self-test the built app (Linux)
+        if: runner.os == 'Linux'
+        run: code=0; dist/LocalTTS --selftest "$PWD/selftest" || code=$?; cat selftest/selftest.txt; exit $code
+      - name: Package macOS app
+        if: runner.os == 'macOS'
+        run: cd dist && zip -r LocalTTS-macos.zip LocalTTS.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalTTS-${{ matrix.name }}
+          path: |
+            dist/LocalTTS.exe
+            dist/LocalTTS
+            dist/LocalTTS-macos.zip
+          if-no-files-found: error

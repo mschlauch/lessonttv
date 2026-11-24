@@ -1,0 +1,9 @@
+kokoro-onnx
+piper-tts
+edge-tts
+soundfile
+numpy
+# lecture video: PDF drawing and a bundled ffmpeg program (no separate installs needed)
+pypdfium2
+imageio-ffmpeg
+pillow
