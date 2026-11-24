@@ -130,6 +130,7 @@ class App(tk.Tk):
         self.btn_clear.pack(side="left", padx=4)
         self.btn_process = ttk.Button(r2, text="Process batch...", command=self._batch_process)
         self.btn_process.pack(side="right")
+        ttk.Button(r2, text="Stop", command=self._stop).pack(side="right", padx=(0, 6))
         self.fmt_cb = ttk.Combobox(r2, state="readonly", width=5, values=["WAV", "MP3"])
         self.fmt_cb.current(0)
         self.fmt_cb.pack(side="right", padx=6)
@@ -470,7 +471,7 @@ class App(tk.Tk):
         ui = self._ui
 
         def on_progress(n, total, name, frac, label):
-            ui(self._progress, (n + frac) / total, f"Batch {n + 1} of {total}: {name} - {label}")
+            ui(self._progress, (n + frac) / total, f"Batch item {n + 1} of {total}: {name} - {label}")
 
         def work():
             try:

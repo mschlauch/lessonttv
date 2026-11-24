@@ -325,6 +325,8 @@ class Batch(unittest.TestCase):
         self.assertIn("deck.mp4", bj.describe(items[1]))
         self.assertTrue(bj.describe(items[2]).startswith("[book - ch 2]"))
         self.assertEqual(bj.existing_videos(items), [out])
+        started = [a[0] for a in log if a[4] == "Preparing..."]
+        self.assertEqual(started, [0, 1, 2, 3], "items must run in list order")
 
 
 if __name__ == "__main__":

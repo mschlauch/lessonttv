@@ -70,7 +70,8 @@ def run(items, folder, synth, level, ext=".wav", on_progress=None, should_stop=N
     """Process every item. Blocking - call from a background thread.
 
     folder: where audio items are written (may be None if there are none).
-    Items are processed grouped by voice, so each voice loads only once. A failing item is
+    Items are processed in list order, so "item n of N" matches the row in the batch list (a
+    voice model is reloaded only when the voice changes between items). A failing item is
     recorded and the rest continue. Returns (results, cancelled);
     results = [(index, ok, name, seconds_or_error)] in list order.
     on_progress(n, total, name, fraction_of_item, label) - same as localtts_core.run_batch.
@@ -78,19 +79,17 @@ def run(items, folder, synth, level, ext=".wav", on_progress=None, should_stop=N
     names = output_names(items, ext)
     if any(kind(it) == "audio" for it in items):
         os.makedirs(folder, exist_ok=True)
-    order = sorted(range(len(items)), key=lambda i: (items[i]["voice"], kind(items[i])))
     tmp = os.path.join(tempfile.gettempdir(), f"localtts_batch_{os.getpid()}.wav")
     stop = should_stop or (lambda: False)
     results, cancelled = [], False
-    for n, i in enumerate(order):
+    for i, it in enumerate(items):
         if stop():
             cancelled = True
             break
-        it = items[i]
         voice = core.VOICE_BY_ID[it["voice"]]
 
-        def prog(frac, label, n=n, i=i):
-            on_progress and on_progress(n, len(items), names[i], frac, label)
+        def prog(frac, label, i=i):
+            on_progress and on_progress(i, len(items), names[i], frac, label)
         try:
             prog(0.0, "Preparing...")
             if kind(it) == "video":

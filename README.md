@@ -88,7 +88,7 @@ pick language/voice/speed at the bottom (the book's language is preselected for 
 
 ## Batch export
 The batch is shared by all tabs. It can contain audio items (text, book chapters) and lecture
-videos. **Process batch...** asks for a folder for the audio files (only if there are any); each
+videos, processed top to bottom in list order. **Stop** (next to **Process batch...**) cancels the run. **Process batch...** asks for a folder for the audio files (only if there are any); each
 video is written to its own *Save video as* path. Existing videos are only replaced after a
 question. A video item reads its script when the batch runs, so later script edits are included.
 
