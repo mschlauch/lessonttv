@@ -88,3 +88,19 @@ Verified here: all tests; the real Tk window driving Books (EPUB + PDF), Add to 
 mixed batch (4 chapter audios + 1 audio + 1 video) with the real Kokoro voice; rebuilt Linux binary passes
 `--selftest`; a 4K export. Not verified: real-world EPUBs/PDFs beyond generated ones (worth trying a few
 books - heading detection is heuristic), scanned PDFs (rejected with an OCR hint), Windows/macOS.
+
+## Update: all European languages
+
+- `core.LANGUAGES` now has 30 languages; `core.VOICES` 168 voices. Piper entries were generated from
+  OHF-Voice/piper1-gpl `docs/VOICES.md` (fetched from GitHub; Hugging Face itself is blocked in the sandbox).
+  Multi-speaker Piper models (mls*, vctk, libritts*, arctic, l2arctic, semaine) are left out because the
+  speaker would be arbitrary. Within a language, Piper voices with medium quality come first.
+- Kokoro: added ff_siwis (French, lang "fr-fr"), if_sara and im_nicola (Italian, lang "it"); real synthesis
+  verified here through the worker process.
+- Fixed: the Portugal voice is named "tugão" (not "tugao"), and Piper download URLs are now percent-encoded.
+  The old id `p:pt_PT-tugao-medium` no longer exists (it could never have downloaded).
+- `lecture_video.language_code` maps any app language (nb/nn -> no); `default_voice` falls back to an
+  offline voice where no Edge voice exists (Luxembourgish).
+- NOT verified: the new Edge voice names (from memory, like the existing ones - check with
+  `edge_tts.list_voices()`), and every new Piper voice (download + sound) - only the catalog is checked.
+  `sv_SE-alma` and `lt_LT-reginute1` are not in that VOICES.md; kept, but check they exist on Hugging Face.

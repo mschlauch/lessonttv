@@ -180,7 +180,8 @@ def language_code(bcp47):
     prim, region = parts[0], next((p for p in parts[1:] if len(p) == 2), "")
     if prim == "pt":
         return "pt-BR" if region == "br" else "pt-PT"
-    return prim if prim in ("en", "es", "de", "sv", "fi", "lt") else None
+    prim = {"nb": "no", "nn": "no"}.get(prim, prim)            # Norwegian Bokmål / Nynorsk
+    return prim if prim in core.VOICES else None
 
 
 def default_voice(bcp47, engine="edge"):
@@ -193,7 +194,8 @@ def default_voice(bcp47, engine="edge"):
     locale = "-".join([parts[0].lower()] + [p.upper() for p in parts[1:2]]) if len(parts) > 1 else ""
     if engine == "edge":
         pool = [v for v in voices if v["engine"] == "edge"]
-        return next((v for v in pool if locale and v["name"].startswith(locale + "-")), pool[0] if pool else None)
+        if pool:                         # some languages (Luxembourgish) have no online voice
+            return next((v for v in pool if locale and v["name"].startswith(locale + "-")), pool[0])
     pool = [v for v in voices if v["engine"] != "edge"]
     if code == "en" and locale == "en-GB":
         return next((v for v in pool if v.get("lang") == "en-gb"), pool[0])

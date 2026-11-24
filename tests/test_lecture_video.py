@@ -134,7 +134,12 @@ class Helpers(unittest.TestCase):
         self.assertEqual(lv.language_code("de_AT"), "de")
         self.assertEqual(lv.language_code("pt-BR"), "pt-BR")
         self.assertEqual(lv.language_code("pt"), "pt-PT")
-        self.assertIsNone(lv.language_code("fr-FR"))
+        self.assertEqual(lv.language_code("fr-FR"), "fr")
+        self.assertEqual(lv.language_code("it-IT"), "it")
+        self.assertEqual(lv.language_code("nb-NO"), "no")
+        self.assertIsNone(lv.language_code("ja-JP"))
+        self.assertEqual(lv.default_voice("lb-LU")["engine"], "piper")      # no online voice exists
+        self.assertEqual(lv.default_voice("it-IT", "offline")["id"], "k:if_sara")
         self.assertIsNone(lv.language_code(""))
         self.assertEqual(lv.default_voice("en-GB")["id"], "e:en-GB-SoniaNeural")
         self.assertEqual(lv.default_voice("de-DE")["engine"], "edge")

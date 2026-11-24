@@ -8,9 +8,12 @@ The window has three tabs and one shared **batch** list underneath:
 - **Lecture video** - slide PDF + lecture script (`.json` from the script editor) -> narrated MP4.
 - **Books (EPUB / PDF)** - split an e-book or a text PDF into chapters, one audio file per chapter.
 
-**Languages:** English, Spanish, Portuguese (Brazil), Portuguese (Portugal), German,
-Swedish, Finnish, Lithuanian. Engines: Kokoro (English, Spanish, Brazilian Portuguese)
-and Piper (all of the above).
+**Languages (30):** Català, Čeština, Cymraeg, Dansk, Deutsch, English, Español, Français,
+Íslenska, Italiano, Latviešu, Lëtzebuergesch, Lietuvių, Magyar, Nederlands, Norsk, Polski,
+Português (Brasil), Português (Portugal), Română, Slovenčina, Slovenščina, Suomi, Svenska, Türkçe,
+Ελληνικά, Русский, Српски, Українська, ქართული - every European language that has a Kokoro or Piper voice.
+Engines: Kokoro (English, Spanish, French, Italian, Brazilian Portuguese; offline, best quality),
+Piper (all languages; offline) and Edge (online preview voices, all languages except Luxembourgish).
 
 ## Run from source
     pip install -r requirements.txt

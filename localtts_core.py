@@ -3,9 +3,9 @@
 No GUI code lives here, so it can be tested and reused on its own.
 
 Engines
-  * Kokoro (via kokoro-onnx): English, Spanish, Brazilian Portuguese
-  * Piper  (via piper-tts):   English, Spanish, Portuguese (BR + PT), German,
-                              Swedish, Finnish, Lithuanian
+  * Kokoro (via kokoro-onnx): English, Spanish, French, Italian, Brazilian Portuguese
+  * Piper  (via piper-tts):   every European language with a Piper voice (see LANGUAGES);
+                              the catalog follows Piper's VOICES.md, without multi-speaker models
   * Edge   (via edge-tts):    online Microsoft voices for quick previews
                               (needs internet; unofficial service)
 
@@ -22,6 +22,7 @@ import time
 import wave
 import shutil
 import tempfile
+import urllib.parse
 import urllib.request
 import urllib.error
 import multiprocessing as mp
@@ -53,10 +54,37 @@ def find_file(rel):
 
 # --------------------------------------------------------------------------- catalog
 
-LANGUAGES = [
-    ("en", "English"), ("es", "Español"), ("pt-BR", "Português (Brasil)"),
-    ("pt-PT", "Português (Portugal)"), ("de", "Deutsch"), ("sv", "Svenska"),
-    ("fi", "Suomi"), ("lt", "Lietuvių"),
+LANGUAGES = [   # every European language Kokoro or Piper can speak (Latin script first)
+    ("ca", "Català"),
+    ("cs", "Čeština"),
+    ("cy", "Cymraeg"),
+    ("da", "Dansk"),
+    ("de", "Deutsch"),
+    ("en", "English"),
+    ("es", "Español"),
+    ("fr", "Français"),
+    ("is", "Íslenska"),
+    ("it", "Italiano"),
+    ("lv", "Latviešu"),
+    ("lb", "Lëtzebuergesch"),
+    ("lt", "Lietuvių"),
+    ("hu", "Magyar"),
+    ("nl", "Nederlands"),
+    ("no", "Norsk"),
+    ("pl", "Polski"),
+    ("pt-BR", "Português (Brasil)"),
+    ("pt-PT", "Português (Portugal)"),
+    ("ro", "Română"),
+    ("sk", "Slovenčina"),
+    ("sl", "Slovenščina"),
+    ("fi", "Suomi"),
+    ("sv", "Svenska"),
+    ("tr", "Türkçe"),
+    ("el", "Ελληνικά"),
+    ("ru", "Русский"),
+    ("sr", "Српски"),
+    ("uk", "Українська"),
+    ("ka", "ქართული"),
 ]
 
 
@@ -112,7 +140,7 @@ VOICES = {
         _e("pt-BR-FranciscaNeural", "Francisca (female)"), _e("pt-BR-AntonioNeural", "Antônio (male)"),
     ],
     "pt-PT": [
-        _p("pt_PT", "tugao", "Tugão", ["medium"]),
+        _p("pt_PT", "tugão", "Tugão", ["medium"]),
         _e("pt-PT-RaquelNeural", "Raquel (female)"), _e("pt-PT-DuarteNeural", "Duarte (male)"),
     ],
     "de": [
@@ -137,6 +165,144 @@ VOICES = {
     "lt": [
         _p("lt_LT", "reginute1", "Reginute", ["medium", "low", "x_low", "high"]),
         _e("lt-LT-OnaNeural", "Ona (female)"), _e("lt-LT-LeonasNeural", "Leonas (male)"),
+    ],
+    "ca": [
+        _p("ca_ES", "upc_ona", "Upc Ona", ['medium', 'x_low']),
+        _p("ca_ES", "upc_pau", "Upc Pau", ['x_low']),
+        _e("ca-ES-JoanaNeural", "Joana (female)"),
+        _e("ca-ES-EnricNeural", "Enric (male)"),
+    ],
+    "cs": [
+        _p("cs_CZ", "jirka", "Jirka", ['medium', 'low']),
+        _e("cs-CZ-VlastaNeural", "Vlasta (female)"),
+        _e("cs-CZ-AntoninNeural", "Antonín (male)"),
+    ],
+    "cy": [
+        _p("cy_GB", "bu_tts", "Bu Tts", ['medium']),
+        _p("cy_GB", "gwryw_gogleddol", "Gwryw Gogleddol", ['medium']),
+        _e("cy-GB-NiaNeural", "Nia (female)"),
+        _e("cy-GB-AledNeural", "Aled (male)"),
+    ],
+    "da": [
+        _p("da_DK", "talesyntese", "Talesyntese", ['medium']),
+        _e("da-DK-ChristelNeural", "Christel (female)"),
+        _e("da-DK-JeppeNeural", "Jeppe (male)"),
+    ],
+    "el": [
+        _p("el_GR", "rapunzelina", "Rapunzelina", ['low']),
+        _e("el-GR-AthinaNeural", "Athina (female)"),
+        _e("el-GR-NestorasNeural", "Nestoras (male)"),
+    ],
+    "fr": [
+        _k("ff_siwis", "Siwis (female)", "fr-fr"),
+        _p("fr_FR", "siwis", "Siwis", ['medium', 'low']),
+        _p("fr_FR", "tom", "Tom", ['medium']),
+        _p("fr_FR", "upmc", "Upmc", ['medium']),
+        _p("fr_FR", "gilles", "Gilles", ['low']),
+        _e("fr-FR-DeniseNeural", "Denise (France, female)"),
+        _e("fr-FR-HenriNeural", "Henri (France, male)"),
+        _e("fr-BE-CharlineNeural", "Charline (Belgium, female)"),
+        _e("fr-CH-ArianeNeural", "Ariane (Switzerland, female)"),
+    ],
+    "hu": [
+        _p("hu_HU", "anna", "Anna", ['medium']),
+        _p("hu_HU", "berta", "Berta", ['medium']),
+        _p("hu_HU", "imre", "Imre", ['medium']),
+        _e("hu-HU-NoemiNeural", "Noémi (female)"),
+        _e("hu-HU-TamasNeural", "Tamás (male)"),
+    ],
+    "is": [
+        _p("is_IS", "bui", "Bui", ['medium']),
+        _p("is_IS", "salka", "Salka", ['medium']),
+        _p("is_IS", "steinn", "Steinn", ['medium']),
+        _p("is_IS", "ugla", "Ugla", ['medium']),
+        _e("is-IS-GudrunNeural", "Guðrún (female)"),
+        _e("is-IS-GunnarNeural", "Gunnar (male)"),
+    ],
+    "it": [
+        _k("if_sara", "Sara (female)", "it"),
+        _k("im_nicola", "Nicola (male)", "it"),
+        _p("it_IT", "paola", "Paola", ['medium']),
+        _p("it_IT", "riccardo", "Riccardo", ['x_low']),
+        _e("it-IT-ElsaNeural", "Elsa (female)"),
+        _e("it-IT-IsabellaNeural", "Isabella (female)"),
+        _e("it-IT-DiegoNeural", "Diego (male)"),
+    ],
+    "ka": [
+        _p("ka_GE", "natia", "Natia", ['medium']),
+        _e("ka-GE-EkaNeural", "Eka (female)"),
+        _e("ka-GE-GiorgiNeural", "Giorgi (male)"),
+    ],
+    "lb": [
+        _p("lb_LU", "marylux", "Marylux", ['medium']),
+    ],
+    "lv": [
+        _p("lv_LV", "aivars", "Aivars", ['medium']),
+        _e("lv-LV-EveritaNeural", "Everita (female)"),
+        _e("lv-LV-NilsNeural", "Nils (male)"),
+    ],
+    "nl": [
+        _p("nl_NL", "pim", "Pim (Netherlands)", ['medium']),
+        _p("nl_NL", "ronnie", "Ronnie (Netherlands)", ['medium']),
+        _p("nl_BE", "nathalie", "Nathalie (Belgium)", ['medium', 'x_low']),
+        _p("nl_BE", "rdh", "Rdh (Belgium)", ['medium', 'x_low']),
+        _e("nl-NL-ColetteNeural", "Colette (Netherlands, female)"),
+        _e("nl-NL-MaartenNeural", "Maarten (Netherlands, male)"),
+        _e("nl-BE-DenaNeural", "Dena (Belgium, female)"),
+        _e("nl-BE-ArnaudNeural", "Arnaud (Belgium, male)"),
+    ],
+    "no": [
+        _p("no_NO", "talesyntese", "Talesyntese", ['medium']),
+        _e("nb-NO-PernilleNeural", "Pernille (female)"),
+        _e("nb-NO-FinnNeural", "Finn (male)"),
+    ],
+    "pl": [
+        _p("pl_PL", "darkman", "Darkman", ['medium']),
+        _p("pl_PL", "gosia", "Gosia", ['medium']),
+        _p("pl_PL", "mc_speech", "Mc Speech", ['medium']),
+        _e("pl-PL-ZofiaNeural", "Zofia (female)"),
+        _e("pl-PL-MarekNeural", "Marek (male)"),
+    ],
+    "ro": [
+        _p("ro_RO", "mihai", "Mihai", ['medium']),
+        _e("ro-RO-AlinaNeural", "Alina (female)"),
+        _e("ro-RO-EmilNeural", "Emil (male)"),
+    ],
+    "ru": [
+        _p("ru_RU", "denis", "Denis", ['medium']),
+        _p("ru_RU", "dmitri", "Dmitri", ['medium']),
+        _p("ru_RU", "irina", "Irina", ['medium']),
+        _p("ru_RU", "ruslan", "Ruslan", ['medium']),
+        _e("ru-RU-SvetlanaNeural", "Svetlana (female)"),
+        _e("ru-RU-DmitryNeural", "Dmitry (male)"),
+    ],
+    "sk": [
+        _p("sk_SK", "lili", "Lili", ['medium']),
+        _e("sk-SK-ViktoriaNeural", "Viktória (female)"),
+        _e("sk-SK-LukasNeural", "Lukáš (male)"),
+    ],
+    "sl": [
+        _p("sl_SI", "artur", "Artur", ['medium']),
+        _e("sl-SI-PetraNeural", "Petra (female)"),
+        _e("sl-SI-RokNeural", "Rok (male)"),
+    ],
+    "sr": [
+        _p("sr_RS", "serbski_institut", "Serbski Institut", ['medium']),
+        _e("sr-RS-SophieNeural", "Sophie (female)"),
+        _e("sr-RS-NicholasNeural", "Nicholas (male)"),
+    ],
+    "tr": [
+        _p("tr_TR", "dfki", "Dfki", ['medium']),
+        _p("tr_TR", "fahrettin", "Fahrettin", ['medium']),
+        _p("tr_TR", "fettah", "Fettah", ['medium']),
+        _e("tr-TR-EmelNeural", "Emel (female)"),
+        _e("tr-TR-AhmetNeural", "Ahmet (male)"),
+    ],
+    "uk": [
+        _p("uk_UA", "ukrainian_tts", "Ukrainian Tts", ['medium']),
+        _p("uk_UA", "lada", "Lada", ['x_low']),
+        _e("uk-UA-PolinaNeural", "Polina (female)"),
+        _e("uk-UA-OstapNeural", "Ostap (male)"),
     ],
 }
 
@@ -218,7 +384,8 @@ def ensure_piper(voice, progress=None):
     errors = []
     for q in voice["qualities"]:
         stem = f"{voice['locale']}-{voice['name']}-{q}"
-        url = f"{PIPER_BASE}/{fam}/{voice['locale']}/{voice['name']}/{q}/{stem}"
+        # quote(): voice names may contain non-ASCII letters (pt_PT "tugão")
+        url = PIPER_BASE + urllib.parse.quote(f"/{fam}/{voice['locale']}/{voice['name']}/{q}/{stem}")
         d = os.path.join(home_dir(), "piper")
         try:
             _download(url + ".onnx.json", os.path.join(d, stem + ".onnx.json"))
