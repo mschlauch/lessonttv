@@ -40,7 +40,7 @@ SCHEMA_VERSION = 3
 FPS = 25
 SILENT_HOLD = 2.5
 RESOLUTIONS = [(480, "480p (small file)"), (720, "720p (HD)"), (1080, "1080p (Full HD)"),
-               (1440, "1440p (sharp, large file)")]
+               (1440, "1440p (sharp, large file)"), (2160, "2160p (4K, very large file)")]
 DEFAULT_HEIGHT = 720
 EDGE_RETRIES = 3          # attempts per page for the online voice (it rate-limits)
 EDGE_PAUSE = 1.0          # seconds between online requests
@@ -136,7 +136,7 @@ def _short_list(xs, limit=12):
     return s + (f" (+{len(xs) - limit} more)" if len(xs) > limit else "")
 
 
-_DROP = {"­", "​", "‌", "‍", "⁠", "﻿"}
+_DROP = {"\u00ad", "\u200b", "\u200c", "\u200d", "\u2060", "\ufeff"}
 
 
 def clean_text(text):
@@ -156,7 +156,7 @@ def clean_text(text):
             out.append(" ")
         else:
             out.append(ch)
-    text = re.sub(r"[ \t ]+", " ", "".join(out))
+    text = re.sub(r"[ \t\u00a0]+", " ", "".join(out))
     text = re.sub(r" *\n *", "\n", text)
     return text.strip()
 
@@ -564,6 +564,7 @@ def make_video(pdf_path, script_path, out_mp4, voice, synth, *, speed=1.0, heigh
     got = media_duration(out_mp4)
     if abs(got - total) > 0.25:
         warnings.append(f"The finished video is {got:.2f} s long, but the audio is {total:.2f} s.")
+    parts_dir = save_page_audio(out_mp4, pages, entries)
 
     for name in os.listdir(audio_dir) if os.path.isdir(audio_dir) else []:   # keep the cache small
         if name not in used:
@@ -573,7 +574,29 @@ def make_video(pdf_path, script_path, out_mp4, voice, synth, *, speed=1.0, heigh
     prog(1.0, "Done.")
     return dict(out=out_mp4, seconds=got, pages=n, silent=silent, size=size, spoken=spoken_new,
                 cached=n - len(silent) - spoken_new, warnings=warnings,
-                page_seconds=[c / rate for c in counts])
+                page_seconds=[c / rate for c in counts], audio_dir=parts_dir)
+
+
+def page_audio_dir(out_mp4):
+    return os.path.splitext(os.path.abspath(out_mp4))[0] + "_audio"
+
+
+def save_page_audio(out_mp4, pages, entries):
+    """Copy every spoken page's WAV next to the video: <video>_audio/page_003_Title.wav.
+
+    Old page_*.wav files in that folder (from an earlier run) are removed first, so the
+    folder always matches the video. Silent pages have no file."""
+    d = page_audio_dir(out_mp4)
+    os.makedirs(d, exist_ok=True)
+    for name in os.listdir(d):
+        if name.startswith("page_") and name.lower().endswith(".wav"):
+            _remove(os.path.join(d, name))
+    for p, (path, _) in zip(pages, entries):
+        if path:
+            title = core._slug(str(p.get("title") or ""), 40)
+            name = f"page_{p['pdf_page']:03d}" + (f"_{title}" if title else "") + ".wav"
+            shutil.copyfile(path, os.path.join(d, name))
+    return d
 
 
 # --------------------------------------------------------------------------- self-test
@@ -618,6 +641,26 @@ def selftest(folder):
             raise RuntimeError("The bundled ffmpeg was not used.")
         if abs(res["seconds"] - sum(res["page_seconds"])) > 0.1 or res["warnings"]:
             raise RuntimeError(f"Unexpected result: {res}")
+        if not os.path.isfile(os.path.join(res["audio_dir"], "page_001.wav")):
+            raise RuntimeError("Page audio was not saved next to the video.")
+        # Book import (EPUB parsing, PDF bookmarks API) inside the packaged app.
+        import zipfile
+        import text_import
+        import pypdfium2.raw  # noqa: F401  (used for PDF bookmarks)
+        epub = os.path.join(folder, "selftest.epub")
+        with zipfile.ZipFile(epub, "w") as z:
+            z.writestr("META-INF/container.xml", '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                       '<rootfiles><rootfile full-path="b.opf"/></rootfiles></container>')
+            z.writestr("b.opf", '<package xmlns="http://www.idpf.org/2007/opf"><metadata/><manifest>'
+                       '<item id="a" href="a.xhtml" media-type="application/xhtml+xml"/></manifest>'
+                       '<spine><itemref idref="a"/></spine></package>')
+            z.writestr("a.xhtml", "<html><body><h1>Eins</h1><p>Zwei\n drei.</p></body></html>")
+        chapters = text_import.open_book(epub).chapters()
+        if [c["text"] for c in chapters] != ["Eins\n\nZwei drei."]:
+            raise RuntimeError(f"EPUB import failed: {chapters}")
+        if text_import.reflow("Zei-\nle eins\nund zwei.") != "Zeile eins und zwei.":
+            raise RuntimeError("Line joining failed.")
+        lines.append("book import: ok")
         lines.append("SELFTEST OK")
         code = 0
     except Exception:
@@ -669,6 +712,7 @@ def main(argv=None):
         sys.exit(str(e))
     print(f"\nSaved {res['out']} ({res['seconds']:.1f} s, {res['size'][0]}x{res['size'][1]}, "
           f"voice {voice['id']})")
+    print(f"Page audio: {res['audio_dir']}")
     if res["silent"]:
         print(f"Pages without narration (shown {a.silent_hold:g} s each): {_short_list(res['silent'])}")
     for w in res["warnings"]:

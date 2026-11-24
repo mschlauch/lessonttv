@@ -125,8 +125,8 @@ class Validation(unittest.TestCase):
 
 class Helpers(unittest.TestCase):
     def test_clean_text(self):
-        self.assertEqual(lv.clean_text("Hallo\x0bWelt­!​  x\x00y"), "Hallo Welt! x y")
-        self.assertEqual(lv.clean_text("a b\r\nc"), "a\nb\nc")
+        self.assertEqual(lv.clean_text("Hallo\x0bWelt\u00ad!\u200b  x\x00y"), "Hallo Welt! x y")
+        self.assertEqual(lv.clean_text("a\u2028b\r\nc"), "a\nb\nc")
         self.assertEqual(lv.clean_text("   \x0c "), "")
 
     def test_language(self):

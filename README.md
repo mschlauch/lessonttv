@@ -3,8 +3,10 @@
 Type text, pick a language and voice, press Speak. Everything runs on your computer.
 No account, no API key. Voices download once, then work offline.
 
-The **Lecture video** tab turns a slide PDF and its lecture script (exported from the
-script editor as `.json`) into a narrated MP4 video - see below.
+The window has three tabs and one shared **batch** list underneath:
+- **Text to speech** - type, paste or open text (`.txt`, `.md`, `.pdf`); speak it or save it.
+- **Lecture video** - slide PDF + lecture script (`.json` from the script editor) -> narrated MP4.
+- **Books (EPUB / PDF)** - split an e-book or a text PDF into chapters, one audio file per chapter.
 
 **Languages:** English, Spanish, Portuguese (Brazil), Portuguese (Portugal), German,
 Swedish, Finnish, Lithuanian. Engines: Kokoro (English, Spanish, Brazilian Portuguese)
@@ -24,9 +26,13 @@ and Piper (all of the above).
    narration - or, in red, why the script and PDF do not match (see below).
 3. Language and voice are preset from the script's language. **Edge (online)** voices are
    the quick default; Kokoro/Piper voices work offline. The app remembers your choice per language.
-4. Pick the **Video size** (480p, 720p, 1080p or 1440p - the width follows the slide shape),
+4. Pick the **Video size** (480p, 720p, 1080p, 1440p or 2160p/4K - the width follows the slide shape),
    how long pages **without narration** are shown (default 2.5 s, silent), and where to save.
-5. **Make video**. **Stop** cancels. When it is done you can play it or show it in its folder.
+5. **Make video**, or **Add to batch** to make it later together with other items. **Stop** cancels.
+   When it is done you can play it or show it in its folder.
+
+Next to the video, a folder `<video name>_audio/` holds the audio of every spoken page
+(`page_003_Title.wav`). It is refreshed on every run; silent pages have no file.
 
 How timing works: every page is spoken separately and the real length of that audio decides
 how long the page is shown (the script's `est_duration_sec` is only an estimate and is not used).
@@ -57,7 +63,32 @@ Command line (same engine, for scripts and testing):
 Video encoding uses an ffmpeg program bundled with the app (`imageio-ffmpeg`), and the PDF is
 drawn with `pypdfium2` - nothing extra has to be installed.
 
+## Opening PDFs in "Text to speech"
+**Open file...** accepts text and PDF files. Text from a PDF has a line break after every printed
+line, and the voice pauses at each one, so the app joins the lines of each paragraph, repairs words
+hyphenated at the end of a line, and removes page numbers and repeated headers/footers. For text
+pasted from elsewhere, **Remove line breaks** does the same to the text box (Ctrl+Z undoes it).
+Scanned PDFs (images without text) need OCR first.
+
+## Books (EPUB / PDF)
+Choose an `.epub` or a text `.pdf`. The chapter list is filled automatically:
+- **EPUB:** from the book's table of contents (sub-sections with *Level 2* and higher); without one,
+  one chapter per file in the book. Footnote markers and page-break markers are not read.
+- **PDF:** from the PDF's bookmarks if it has any; otherwise from headings in the text such as
+  "Kapitel 3", "Chapter IV", "Teil 2 - Title", "Prolog", "Einleitung" (in all app languages), or numbered
+  headings at the top of a page. If neither is found, the text is cut **by length** at paragraph ends
+  (*Max. length per part*, default 20 min of speech).
+- *Split by* lets you choose another method, e.g. by length even when chapters were found.
+Text before the first chapter (cover, title page) is listed but not selected. Select chapters,
+pick language/voice/speed at the bottom (the book's language is preselected for EPUBs), and
+**Add selected chapters to batch**: one audio file per chapter, named `<book>_03_<chapter title>`.
+
 ## Batch export
+The batch is shared by all tabs. It can contain audio items (text, book chapters) and lecture
+videos. **Process batch...** asks for a folder for the audio files (only if there are any); each
+video is written to its own *Save video as* path. Existing videos are only replaced after a
+question. A video item reads its script when the batch runs, so later script edits are included.
+
 Set text, language, voice and speed, then **Add to batch** (optionally with a file name).
 Select rows and **Remove from batch**, or **Clear**. **Process batch...** asks for a folder and
 writes one WAV or MP3 per item (named `001_de_Thorsten_first_words.wav`, or your file name).

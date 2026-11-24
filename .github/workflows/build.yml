@@ -33,8 +33,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y python3-tk tk-dev
       - name: Install dependencies
         run: python -m pip install -r requirements.txt pyinstaller
-      - name: Test the lecture video engine
-        run: python tests/test_lecture_video.py
+      - name: Test lecture video, import and batch
+        run: |
+          python tests/test_lecture_video.py
+          python tests/test_import_batch.py
       - name: Build
         run: python -m PyInstaller ${{ matrix.flags }} --name LocalTTS --collect-all piper --collect-all kokoro_onnx --collect-all espeakng_loader --collect-all phonemizer --collect-all language_tags --collect-all localtts_lt --collect-all edge_tts --collect-all soundfile --collect-all _soundfile_data --collect-all imageio_ffmpeg --collect-all pypdfium2 --collect-all pypdfium2_raw localtts_gui.py
       # Runs the packaged app itself: makes a tiny video with the bundled ffmpeg, PDF renderer and

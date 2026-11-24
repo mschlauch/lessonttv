@@ -14,6 +14,8 @@ from tkinter import ttk, filedialog, messagebox
 
 import localtts_core as core
 import lecture_video as lv
+import batch_jobs as bj
+import text_import
 
 LEVELS = [("light", "Light"), ("balanced", "Balanced"), ("fast", "Fast")]
 IDLE_SECONDS = 90          # free the speech process (and its RAM) after this much inactivity
@@ -33,7 +35,7 @@ def load_batch():
     try:
         with open(BATCH_FILE, "r", encoding="utf-8") as f:
             items = json.load(f)
-        return [i for i in items if i.get("voice") in core.VOICE_BY_ID and i.get("text")]
+        return [i for i in items if bj.is_valid(i)]
     except Exception:
         return []
 
@@ -60,8 +62,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("LocalTTS")
-        self.geometry("900x820")
-        self.minsize(720, 680)
+        self.geometry("920x900")
+        self.minsize(760, 760)
         self.synth = core.Synth()
         self.busy = False
         self.play_proc = None
@@ -118,11 +120,39 @@ class App(tk.Tk):
         self.perf_lbl.pack(side="left", padx=8)
         self._on_level(save=False)
 
+        bf = ttk.LabelFrame(self, text="Batch (audio files, chapters and lecture videos)")
+        bf.pack(side="bottom", fill="x", padx=10, pady=4)
+        r2 = ttk.Frame(bf)
+        r2.pack(side="bottom", fill="x", padx=6, pady=(2, 6))
+        self.btn_remove = ttk.Button(r2, text="Remove from batch", command=self._batch_remove)
+        self.btn_remove.pack(side="left")
+        self.btn_clear = ttk.Button(r2, text="Clear", command=self._batch_clear)
+        self.btn_clear.pack(side="left", padx=4)
+        self.btn_process = ttk.Button(r2, text="Process batch...", command=self._batch_process)
+        self.btn_process.pack(side="right")
+        self.fmt_cb = ttk.Combobox(r2, state="readonly", width=5, values=["WAV", "MP3"])
+        self.fmt_cb.current(0)
+        self.fmt_cb.pack(side="right", padx=6)
+        ttk.Label(r2, text="Audio format").pack(side="right")
+        tf = ttk.Frame(bf)
+        tf.pack(fill="x", padx=6, pady=(4, 0))
+        self.tree = ttk.Treeview(tf, columns=("n", "type", "lang", "voice", "speed", "text"),
+                                 show="headings", height=5, selectmode="extended")
+        for col, title, w in (("n", "#", 34), ("type", "Type", 52), ("lang", "Language", 110),
+                              ("voice", "Voice", 150), ("speed", "Speed", 50), ("text", "What", 380)):
+            self.tree.heading(col, text=title)
+            self.tree.column(col, width=w, anchor="w", stretch=(col == "text"))
+        sb = ttk.Scrollbar(tf, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        self.tree.pack(side="left", fill="x", expand=True)
+        sb.pack(side="left", fill="y")
+
         self.nb = ttk.Notebook(self)
         self.nb.pack(fill="both", expand=True, padx=6, pady=(6, 0))
-        tts, video = ttk.Frame(self.nb), ttk.Frame(self.nb)
+        tts, video, books = ttk.Frame(self.nb), ttk.Frame(self.nb), ttk.Frame(self.nb)
         self.nb.add(tts, text="Text to speech")
         self.nb.add(video, text="Lecture video")
+        self.nb.add(books, text="Books (EPUB / PDF)")
 
         top = ttk.Frame(tts)
         top.pack(fill="x", **pad)
@@ -158,45 +188,22 @@ class App(tk.Tk):
         self.btn_stop.pack(side="left", padx=6)
         self.btn_save = ttk.Button(bar, text="Save as WAV...", command=self._save)
         self.btn_save.pack(side="left")
-        ttk.Button(bar, text="Open text file...", command=self._open_text).pack(side="right")
-
-        bf = ttk.LabelFrame(tts, text="Batch export")
-        bf.pack(fill="x", padx=10, pady=4)
-        r1 = ttk.Frame(bf)
-        r1.pack(fill="x", padx=6, pady=(4, 2))
+        ttk.Button(bar, text="Open file...", command=self._open_file).pack(side="right")
+        ttk.Button(bar, text="Remove line breaks", command=self._join_lines).pack(side="right", padx=6)
+        r1 = ttk.Frame(tts)
+        r1.pack(fill="x", padx=10, pady=(0, 6))
         self.btn_add = ttk.Button(r1, text="Add to batch", command=self._batch_add)
         self.btn_add.pack(side="left")
         ttk.Label(r1, text="  File name (optional)").pack(side="left")
-        self.name_entry = ttk.Entry(r1, width=22)
+        self.name_entry = ttk.Entry(r1, width=28)
         self.name_entry.pack(side="left", padx=4)
-        self.btn_remove = ttk.Button(r1, text="Remove from batch", command=self._batch_remove)
-        self.btn_remove.pack(side="left", padx=(10, 0))
-        self.btn_clear = ttk.Button(r1, text="Clear", command=self._batch_clear)
-        self.btn_clear.pack(side="left", padx=4)
-        self.btn_process = ttk.Button(r1, text="Process batch...", command=self._batch_process)
-        self.btn_process.pack(side="right")
-        self.fmt_cb = ttk.Combobox(r1, state="readonly", width=5, values=["WAV", "MP3"])
-        self.fmt_cb.current(0)
-        self.fmt_cb.pack(side="right", padx=6)
-        ttk.Label(r1, text="Format").pack(side="right")
-        r2 = ttk.Frame(bf)
-        r2.pack(fill="x", padx=6, pady=(0, 6))
-        self.tree = ttk.Treeview(r2, columns=("n", "lang", "voice", "speed", "text"),
-                                 show="headings", height=5, selectmode="extended")
-        for col, title, w in (("n", "#", 34), ("lang", "Language", 120), ("voice", "Voice", 170),
-                              ("speed", "Speed", 52), ("text", "Text", 400)):
-            self.tree.heading(col, text=title)
-            self.tree.column(col, width=w, anchor="w", stretch=(col == "text"))
-        sb = ttk.Scrollbar(r2, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=sb.set)
-        self.tree.pack(side="left", fill="x", expand=True)
-        sb.pack(side="left", fill="y")
-        self.batch_buttons = [self.btn_add, self.btn_remove, self.btn_clear, self.btn_process]
-        self._refresh_tree()
 
         self._build_video(video)
-        if self.settings.get("tab") == 1:
-            self.nb.select(1)
+        self._build_books(books)
+        self.batch_buttons = [self.btn_add, self.btn_remove, self.btn_clear, self.btn_process]
+        self._refresh_tree()
+        if self.settings.get("tab") in (1, 2):
+            self.nb.select(self.settings["tab"])
         self.nb.bind("<<NotebookTabChanged>>", lambda e: self._persist())
 
     def _speed_text(self):
@@ -229,6 +236,8 @@ class App(tk.Tk):
         self.voice_note.config(text=self._voice_note(self._current_voice()))
         if hasattr(self, "v_voice_note") and getattr(self, "v_voices_list", None):
             self.v_voice_note.config(text=self._voice_note(self._v_current_voice()))
+        if hasattr(self, "b_voice"):
+            self.b_voice.note.config(text=self._voice_note(self.b_voice.get()[1]))
 
     def _on_lang(self):
         self.lang_code.set(core.LANGUAGES[self.lang_cb.current()][0])
@@ -246,6 +255,12 @@ class App(tk.Tk):
         if hasattr(self, "nb"):
             self.settings.update(tab=self.nb.index("current"), video_speed=round(self.v_speed.get(), 2),
                                  video_height=self._v_height(), video_voices=self.v_voices)
+            if hasattr(self, "b_voice"):
+                self.settings.update(self.b_voice.state())
+            try:
+                self.settings["book_max_min"] = float(self.b_max.get().replace(",", "."))
+            except ValueError:
+                pass
             try:
                 self.settings["video_hold"] = float(self.v_hold.get().replace(",", "."))
             except ValueError:
@@ -256,7 +271,7 @@ class App(tk.Tk):
         self.busy = busy
         self.btn_speak.config(state="disabled" if busy else "normal")
         self.btn_save.config(state="disabled" if busy else "normal")
-        for b in self.batch_buttons + self.video_buttons:
+        for b in self.batch_buttons + self.video_buttons + self.book_buttons:
             b.config(state="disabled" if busy else "normal")
         if not busy:
             self._v_update_play()
@@ -386,23 +401,28 @@ class App(tk.Tk):
             self.tree.delete(iid)
         for i, it in enumerate(self.batch, 1):
             v = core.VOICE_BY_ID[it["voice"]]
-            text = " ".join(it["text"].split())
             self.tree.insert("", "end", values=(
-                i, core.LANG_NAMES.get(it["lang"], it["lang"]), v["label"].split(" - ")[0],
-                f"{it['speed']:.2f}", (text[:90] + "...") if len(text) > 90 else text))
+                i, "Video" if bj.kind(it) == "video" else "Audio",
+                core.LANG_NAMES.get(it["lang"], it["lang"]), v["label"].split(" - ")[0],
+                f"{it['speed']:.2f}", bj.describe(it)))
+        if self.batch:
+            self.tree.see(self.tree.get_children()[-1])
+
+    def _batch_append(self, items):
+        self.batch.extend(items)
+        save_batch(self.batch)
+        self._refresh_tree()
+        n = len(self.batch)
+        self._set_status(f"Added {len(items)} to the batch ({n} item{'s' if n != 1 else ''} in total).")
 
     def _batch_add(self):
         text = self.text.get("1.0", "end").strip()
         if not text:
             self._set_status("Nothing to add - type some text first.")
             return
-        self.batch.append(dict(lang=self.lang_code.get(), voice=self._current_voice()["id"],
-                               speed=round(self.speed.get(), 2), text=text,
-                               name=self.name_entry.get().strip()))
+        self._batch_append([bj.audio_item(self.lang_code.get(), self._current_voice()["id"],
+                                          self.speed.get(), text, self.name_entry.get().strip())])
         self.name_entry.delete(0, "end")
-        save_batch(self.batch)
-        self._refresh_tree()
-        self._set_status(f"Added to batch ({len(self.batch)} item{'s' if len(self.batch) != 1 else ''}).")
 
     def _batch_remove(self):
         rows = sorted((self.tree.index(i) for i in self.tree.selection()), reverse=True)
@@ -426,11 +446,21 @@ class App(tk.Tk):
         if not self.batch:
             self._set_status("The batch is empty - use 'Add to batch' first.")
             return
-        folder = filedialog.askdirectory(title="Choose the folder for the audio files")
-        if not folder:
+        items, level = [dict(i) for i in self.batch], self.level.get()
+        folder = None
+        if any(bj.kind(i) == "audio" for i in items):
+            folder = filedialog.askdirectory(title="Choose the folder for the audio files",
+                                             initialdir=self.settings.get("batch_dir"))
+            if not folder:
+                return
+            self.settings["batch_dir"] = folder
+        exist = bj.existing_videos(items)
+        if exist and not messagebox.askyesno(
+                "Replace videos?", f"{len(exist)} video(s) already exist and will be replaced:\n"
+                + "\n".join(os.path.basename(p) for p in exist[:8]) + ("\n..." if len(exist) > 8 else "")):
             return
         ext = ".mp3" if self.fmt_cb.get() == "MP3" else ".wav"
-        items, level = [dict(i) for i in self.batch], self.level.get()
+        self._persist()
         self._stop_playback()
         self._cancel_idle()
         self.stop_flag = False
@@ -444,24 +474,34 @@ class App(tk.Tk):
 
         def work():
             try:
-                res, cancelled = core.run_batch(items, folder, self.synth, level, ext,
-                                                on_progress, lambda: self.stop_flag)
-                ui(self._batch_done, res, cancelled, folder, len(items))
+                res, cancelled = bj.run(items, folder, self.synth, level, ext,
+                                        on_progress, lambda: self.stop_flag)
+                ui(self._batch_done, res, cancelled, folder, items)
             except Exception as e:
                 ui(self._fail, e)
         threading.Thread(target=work, daemon=True).start()
 
-    def _batch_done(self, results, cancelled, folder, total):
+    def _batch_done(self, results, cancelled, folder, items):
         self._finish()
+        total = len(items)
         ok = [r for r in results if r[1]]
         bad = [r for r in results if not r[1]]
-        head = (f"Stopped - {len(ok)} of {total} files saved" if cancelled
-                else f"Done - {len(ok)} of {total} files saved")
-        self._set_status(f"{head} in {folder}")
+        head = (f"Stopped - {len(ok)} of {total} items done" if cancelled
+                else f"Done - {len(ok)} of {total} items")
+        where = []
+        if folder:
+            where.append(f"audio in {folder}")
+        if any(bj.kind(items[r[0]]) == "video" for r in ok):
+            where.append("videos next to their PDFs (page audio in a *_audio folder beside each)")
+        self._set_status(head + (" - " + "; ".join(where) if where else ""))
+        videos = [items[r[0]]["out"] for r in ok if bj.kind(items[r[0]]) == "video"]
+        if videos:
+            self.last_video = videos[-1]
+            self._v_update_play()
         if bad:
             lines = "\n".join(f"- {r[2]}: {r[3]}" for r in bad[:6])
             more = f"\n(+{len(bad) - 6} more)" if len(bad) > 6 else ""
-            messagebox.showwarning("Some items failed", f"{len(ok)} saved, {len(bad)} failed:\n{lines}{more}")
+            messagebox.showwarning("Some items failed", f"{len(ok)} done, {len(bad)} failed:\n{lines}{more}")
 
     # --------------------------------------------------------- lecture video
     def _build_video(self, tab):
@@ -534,13 +574,15 @@ class App(tk.Tk):
         bar.pack(fill="x", **pad)
         self.btn_make = ttk.Button(bar, text="Make video", command=self._v_make)
         self.btn_make.pack(side="left")
+        self.btn_v_add = ttk.Button(bar, text="Add to batch", command=self._v_add_batch)
+        self.btn_v_add.pack(side="left", padx=(6, 0))
         ttk.Button(bar, text="Stop", command=self._stop).pack(side="left", padx=6)
         self.btn_play_video = ttk.Button(bar, text="Play video", command=lambda: self._open_path(self.last_video))
         self.btn_play_video.pack(side="left")
         self.btn_show_video = ttk.Button(bar, text="Show in folder",
                                          command=lambda: self._open_path(os.path.dirname(self.last_video)))
         self.btn_show_video.pack(side="left", padx=6)
-        self.video_buttons = self.v_pick_btns + [b_out, self.btn_make]
+        self.video_buttons = self.v_pick_btns + [b_out, self.btn_make, self.btn_v_add]
         self._v_update_play()
 
     def _v_height(self):
@@ -647,12 +689,11 @@ class App(tk.Tk):
         self.v_ready = True
         return True
 
-    def _v_make(self):
-        if self.busy:
-            return
+    def _v_params(self, title="Cannot make the video"):
+        """Checked settings of the video tab as a dict, or None (after telling the user why)."""
         if not self._v_check():
-            messagebox.showerror("Cannot make the video", self.v_info.cget("text"))
-            return
+            messagebox.showerror(title, self.v_info.cget("text"))
+            return None
         pdf, js = self.v_pdf.get(), self.v_json.get()
         out = self.v_out.get().strip() or lv.default_output(pdf)
         if not out.lower().endswith(".mp4"):
@@ -664,13 +705,34 @@ class App(tk.Tk):
             if not 0.1 <= hold <= 60:
                 raise ValueError
         except ValueError:
-            messagebox.showerror("Cannot make the video",
-                                 "Enter a time between 0.1 and 60 seconds for pages without narration.")
+            messagebox.showerror(title, "Enter a time between 0.1 and 60 seconds for pages without narration.")
+            return None
+        return dict(pdf=pdf, js=js, out=out, hold=hold, voice=self._v_current_voice(),
+                    speed=self.v_speed.get(), height=self._v_height())
+
+    def _v_add_batch(self):
+        p = self._v_params("Cannot add to the batch")
+        if not p:
             return
+        if any(bj.kind(i) == "video" and i["out"] == p["out"] for i in self.batch):
+            if not messagebox.askyesno("Already in the batch",
+                                       f"{os.path.basename(p['out'])} is already in the batch. Add it again?"):
+                return
+        self._batch_append([bj.video_item(self._v_code(), p["voice"]["id"], p["speed"], p["pdf"], p["js"],
+                                          p["out"], p["height"], p["hold"])])
+        self._persist()
+
+    def _v_make(self):
+        if self.busy:
+            return
+        p = self._v_params()
+        if not p:
+            return
+        pdf, js, out, hold = p["pdf"], p["js"], p["out"], p["hold"]
         if os.path.exists(out) and not messagebox.askyesno(
                 "Replace video?", f"{os.path.basename(out)} already exists. Replace it?"):
             return
-        voice, level, speed, height = self._v_current_voice(), self.level.get(), self.v_speed.get(), self._v_height()
+        voice, level, speed, height = p["voice"], self.level.get(), p["speed"], p["height"]
         self._persist()
         self._stop_playback()
         self._cancel_idle()
@@ -706,6 +768,7 @@ class App(tk.Tk):
                f"{res['pages']} pages."]
         if res["silent"]:
             msg.append(f"Pages without narration: {lv._short_list(res['silent'])}.")
+        msg.append(f"Page audio: {os.path.basename(res['audio_dir'])}/ (next to the video).")
         msg += res["warnings"]
         if messagebox.askyesno("Video ready", "\n".join(msg) + "\n\nPlay it now?"):
             self._open_path(res["out"])
@@ -723,6 +786,199 @@ class App(tk.Tk):
         except Exception as e:
             self._set_status(f"Could not open {path}: {e}")
 
+    # ----------------------------------------------------------------- books
+    def _build_books(self, tab):
+        pad = dict(padx=10, pady=4)
+        self.b_path = tk.StringVar()
+        self.b_book, self.b_chapters, self.b_methods = None, [], []
+
+        ff = ttk.LabelFrame(tab, text="1. Book")
+        ff.pack(fill="x", **pad)
+        ttk.Label(ff, text="EPUB or PDF").grid(row=0, column=0, sticky="w", padx=6, pady=3)
+        ttk.Entry(ff, textvariable=self.b_path, state="readonly").grid(row=0, column=1, sticky="we", padx=4)
+        b_pick = ttk.Button(ff, text="Choose...", command=self._b_pick)
+        b_pick.grid(row=0, column=2, padx=6)
+        self.b_info = ttk.Label(ff, justify="left", wraplength=760,
+                                text="Choose an e-book (.epub) or a text PDF. It is split into chapters; "
+                                     "each selected chapter becomes one audio file in the batch.")
+        self.b_info.grid(row=1, column=0, columnspan=3, sticky="w", padx=6, pady=(2, 6))
+        ff.columnconfigure(1, weight=1)
+        ff.bind("<Configure>", lambda e: self.b_info.config(wraplength=max(300, e.width - 30)))
+
+        vf = ttk.LabelFrame(tab, text="3. Voice")
+        vf.pack(side="bottom", fill="x", **pad)
+        self.b_voice = VoicePicker(vf, self, "book", self.settings)
+        self.b_voice.pack(fill="x")
+        bar = ttk.Frame(tab)
+        bar.pack(side="bottom", fill="x", **pad)
+        self.btn_b_add = ttk.Button(bar, text="Add selected chapters to batch", command=self._b_add)
+        self.btn_b_add.pack(side="right")
+
+        cf = ttk.LabelFrame(tab, text="2. Chapters")
+        cf.pack(fill="both", expand=True, **pad)
+        row = ttk.Frame(cf)
+        row.pack(fill="x", padx=6, pady=(4, 2))
+        ttk.Label(row, text="Split by").pack(side="left")
+        self.b_method_cb = ttk.Combobox(row, state="readonly", width=30)
+        self.b_method_cb.pack(side="left", padx=4)
+        self.b_method_cb.bind("<<ComboboxSelected>>", lambda e: self._b_fill())
+        self.b_level_lbl = ttk.Label(row, text="  Level")
+        self.b_level_cb = ttk.Combobox(row, state="readonly", width=3)
+        self.b_level_cb.bind("<<ComboboxSelected>>", lambda e: self._b_fill())
+        self.b_max = tk.StringVar(value=f"{self.settings.get('book_max_min', 20):g}")
+        self.b_max_frame = ttk.Frame(row)
+        ttk.Label(self.b_max_frame, text="  Max. length per part").pack(side="left")
+        sp = ttk.Spinbox(self.b_max_frame, from_=2, to=180, increment=1, width=5, textvariable=self.b_max,
+                         command=self._b_fill)
+        sp.pack(side="left", padx=4)
+        sp.bind("<Return>", lambda e: self._b_fill())
+        sp.bind("<FocusOut>", lambda e: self._b_fill())
+        ttk.Label(self.b_max_frame, text="min").pack(side="left")
+        tf = ttk.Frame(cf)
+        tf.pack(fill="both", expand=True, padx=6, pady=2)
+        self.b_tree = ttk.Treeview(tf, columns=("n", "title", "words", "min"), show="headings",
+                                   selectmode="extended", height=6)
+        for col, title, w, anchor in (("n", "#", 40, "w"), ("title", "Chapter", 460, "w"),
+                                      ("words", "Words", 80, "e"), ("min", "About", 80, "e")):
+            self.b_tree.heading(col, text=title)
+            self.b_tree.column(col, width=w, anchor=anchor, stretch=(col == "title"))
+        sb = ttk.Scrollbar(tf, orient="vertical", command=self.b_tree.yview)
+        self.b_tree.configure(yscrollcommand=sb.set)
+        self.b_tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="left", fill="y")
+        r2 = ttk.Frame(cf)
+        r2.pack(fill="x", padx=6, pady=(2, 6))
+        ttk.Button(r2, text="Select all",
+                   command=lambda: self.b_tree.selection_set(self.b_tree.get_children())).pack(side="left")
+        ttk.Button(r2, text="Select none", command=lambda: self.b_tree.selection_set(())).pack(side="left", padx=6)
+        ttk.Button(r2, text="Show in text box", command=self._b_to_text).pack(side="left")
+        self.b_sel_lbl = ttk.Label(r2, text="", foreground="#666")
+        self.b_sel_lbl.pack(side="right")
+        self.b_tree.bind("<<TreeviewSelect>>", lambda e: self._b_sel_info())
+        self.book_buttons = [b_pick, self.btn_b_add]
+
+    def _b_pick(self):
+        path = filedialog.askopenfilename(
+            title="Choose a book", initialdir=self.settings.get("book_dir"),
+            filetypes=[("E-books and PDFs", "*.epub *.EPUB *.pdf *.PDF"), ("EPUB", "*.epub *.EPUB"),
+                       ("PDF", "*.pdf *.PDF")])
+        if path:
+            self._b_load(path)
+
+    def _b_load(self, path):
+        self.settings["book_dir"] = os.path.dirname(path)
+        self._set_status(f"Reading {os.path.basename(path)}...")
+        self.config(cursor="watch")
+        self.update_idletasks()
+        try:
+            book = text_import.open_book(path)
+        except (ValueError, OSError) as e:
+            self._set_status("Could not open the book.")
+            self.b_info.config(text=str(e), foreground="#b00020")
+            messagebox.showerror("Could not open the book", str(e))
+            return
+        finally:
+            self.config(cursor="")
+        self.b_book = book
+        self.b_path.set(path)
+        self.b_methods = book.methods()
+        self.b_method_cb.config(values=[text_import.METHOD_NAMES[m].capitalize() for m in self.b_methods])
+        self.b_method_cb.current(0)
+        code = lv.language_code(book.language)
+        if code:
+            self.b_voice.set_language(code)
+        depth = book.max_depth()
+        self.b_level_cb.config(values=list(range(1, depth + 1)))
+        self.b_level_cb.set(book.default_depth())
+        self._b_fill()
+        self._set_status(f"Opened {os.path.basename(path)}.")
+
+    def _b_method(self):
+        return self.b_methods[max(0, self.b_method_cb.current())] if self.b_methods else None
+
+    def _b_max_words(self):
+        try:
+            minutes = min(180.0, max(2.0, float(self.b_max.get().replace(",", "."))))
+        except ValueError:
+            minutes = 20.0
+        return int(minutes * text_import.WORDS_PER_MINUTE)
+
+    def _b_fill(self):
+        book = self.b_book
+        if not book:
+            return
+        method = self._b_method()
+        for w in (self.b_level_lbl, self.b_level_cb, self.b_max_frame):
+            w.pack_forget()
+        if method in ("toc", "outline") and book.max_depth() > 1:
+            self.b_level_lbl.pack(side="left")
+            self.b_level_cb.pack(side="left", padx=4)
+        if method == "length":
+            self.b_max_frame.pack(side="left")
+        depth = int(self.b_level_cb.get() or 1)
+        self.b_chapters = book.chapters(depth=depth, method=method, max_words=self._b_max_words())
+        for iid in self.b_tree.get_children():
+            self.b_tree.delete(iid)
+        first = 0 if self.b_chapters and self.b_chapters[0]["level"] == 0 else 1
+        for k, ch in enumerate(self.b_chapters):
+            mins = ch["words"] / text_import.WORDS_PER_MINUTE
+            self.b_tree.insert("", "end", iid=str(k), values=(
+                k + first, "    " * max(0, ch["level"] - 1) + ch["title"], f"{ch['words']:,}",
+                f"{mins:.0f} min" if mins >= 1 else "<1 min"))
+        self.b_tree.selection_set([str(k) for k, ch in enumerate(self.b_chapters) if ch["level"] > 0 and ch["words"]])
+        lang = book.language or "not given"
+        how = text_import.METHOD_NAMES[method]
+        lines = [f"\u201c{book.title}\u201d - {'e-book' if book.kind == 'epub' else 'PDF'}, "
+                 f"language: {lang}. {len(self.b_chapters)} parts, split by {how}."]
+        if book.kind == "pdf" and method == "length":
+            lines.append("No chapters were found (no bookmarks, no headings such as \u201cChapter 3\u201d), "
+                         "so the text is cut at paragraph ends into parts of at most the length set below.")
+        if not lv.language_code(book.language):
+            lines.append("Check the language and voice at the bottom.")
+        self.b_info.config(text="\n".join(lines), foreground="")
+        self._b_sel_info()
+
+    def _b_selected(self):
+        return [(int(i), self.b_chapters[int(i)]) for i in sorted(self.b_tree.selection(), key=int)
+                if self.b_chapters[int(i)]["words"]]
+
+    def _b_sel_info(self):
+        sel = self._b_selected()
+        words = sum(ch["words"] for _, ch in sel)
+        mins = words / text_import.WORDS_PER_MINUTE
+        size = f"{mins / 60:.1f} h" if mins >= 60 else f"{max(1, round(mins))} min"
+        self.b_sel_lbl.config(text=f"{len(sel)} selected, about {size} of speech" if sel else "")
+
+    def _b_to_text(self):
+        sel = self._b_selected()
+        if not sel:
+            self._set_status("Select one or more chapters first.")
+            return
+        self.text.delete("1.0", "end")
+        self.text.insert("1.0", "\n\n".join(ch["text"] for _, ch in sel))
+        self.name_entry.delete(0, "end")
+        self.name_entry.insert(0, sel[0][1]["title"][:60])
+        self.nb.select(0)
+        self._set_status(f"{len(sel)} chapter(s) put in the text box.")
+
+    def _b_add(self):
+        if not self.b_book:
+            self._set_status("Choose a book first.")
+            return
+        sel = self._b_selected()
+        if not sel:
+            messagebox.showinfo("Nothing selected", "Select one or more chapters that contain text.")
+            return
+        lang, voice, speed = self.b_voice.get()
+        stem = os.path.splitext(os.path.basename(self.b_book.path))[0]
+        first = 0 if self.b_chapters[0]["level"] == 0 else 1
+        width = 3 if len(self.b_chapters) >= 100 else 2
+        items = [bj.audio_item(lang, voice["id"], speed, ch["text"],
+                               name=f"{stem}_{k + first:0{width}d}_{ch['title'][:50]}",
+                               source=f"{stem[:24]} - {ch['title'][:40]}") for k, ch in sel]
+        self._batch_append(items)
+        self._persist()
+
     # ------------------------------------------------------------- file ops
     def _save(self):
         path = filedialog.asksaveasfilename(defaultextension=".wav",
@@ -735,12 +991,54 @@ class App(tk.Tk):
         else:
             self._start(play=False, save_to=path)
 
-    def _open_text(self):
-        path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt *.md"), ("All", "*.*")])
-        if path:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                self.text.delete("1.0", "end")
-                self.text.insert("1.0", f.read())
+    def _open_file(self):
+        path = filedialog.askopenfilename(
+            title="Open text or PDF (whole text into the text box)",
+            filetypes=[("Text, PDF, EPUB", "*.txt *.md *.pdf *.PDF *.epub *.EPUB"), ("Text files", "*.txt *.md"),
+                       ("PDF", "*.pdf *.PDF"), ("EPUB e-books", "*.epub *.EPUB"), ("All", "*.*")],
+            initialdir=self.settings.get("open_dir"))
+        if not path:
+            return
+        self.settings["open_dir"] = os.path.dirname(path)
+        ext = os.path.splitext(path)[1].lower()
+        self._set_status(f"Reading {os.path.basename(path)}...")
+        self.config(cursor="watch")
+        self.update_idletasks()
+        try:
+            if ext == ".epub":
+                self.nb.select(2)
+                self._b_load(path)
+                return
+            if ext == ".pdf":
+                text = text_import.pdf_text(path)
+                note = (" (line breaks inside paragraphs removed; for one audio file per chapter, "
+                        "use the Books tab)")
+            else:
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+                note = ""
+        except (ValueError, OSError) as e:
+            self._set_status("Could not open the file.")
+            messagebox.showerror("Could not open the file", str(e))
+            return
+        finally:
+            self.config(cursor="")
+        self.text.delete("1.0", "end")
+        self.text.insert("1.0", text)
+        self.name_entry.delete(0, "end")
+        self.name_entry.insert(0, os.path.splitext(os.path.basename(path))[0])
+        self._set_status(f"Opened {os.path.basename(path)}: {len(text.split()):,} words{note}.")
+
+    def _join_lines(self):
+        text = self.text.get("1.0", "end").strip()
+        if not text:
+            return
+        new = text_import.reflow(text)
+        self.text.edit_separator()
+        self.text.delete("1.0", "end")
+        self.text.insert("1.0", new)
+        self.text.edit_separator()
+        self._set_status("Line breaks inside paragraphs removed (Ctrl+Z undoes it).")
 
     def _quit(self):
         self._stop_playback()
@@ -751,6 +1049,66 @@ class App(tk.Tk):
             except OSError:
                 pass
         self.destroy()
+
+
+class VoicePicker(ttk.Frame):
+    """Language + voice + speed, remembering the chosen voice per language (settings key <key>_voices)."""
+
+    def __init__(self, parent, app, key, settings):
+        super().__init__(parent)
+        self.app, self.key = app, key
+        self.voices_by_lang = dict(settings.get(f"{key}_voices") or {})
+        self.speed = tk.DoubleVar(value=settings.get(f"{key}_speed", 1.0))
+        ttk.Label(self, text="Language").grid(row=0, column=0, sticky="w", padx=6, pady=3)
+        self.lang_cb = ttk.Combobox(self, state="readonly", width=22, values=[n for _, n in core.LANGUAGES])
+        self.lang_cb.grid(row=0, column=1, sticky="w", padx=4)
+        self.lang_cb.bind("<<ComboboxSelected>>", lambda e: self._fill())
+        ttk.Label(self, text="Speed").grid(row=0, column=2, padx=(16, 4))
+        self.speed_lbl = ttk.Label(self, width=6)
+        ttk.Scale(self, from_=0.6, to=1.6, variable=self.speed, length=130,
+                  command=lambda v: self.speed_lbl.config(text=f"{self.speed.get():.2f}x")).grid(row=0, column=3, sticky="w")
+        self.speed_lbl.config(text=f"{self.speed.get():.2f}x")
+        self.speed_lbl.grid(row=0, column=4, sticky="w")
+        ttk.Label(self, text="Voice").grid(row=1, column=0, sticky="w", padx=6, pady=3)
+        self.voice_cb = ttk.Combobox(self, state="readonly", width=48)
+        self.voice_cb.grid(row=1, column=1, columnspan=4, sticky="we", padx=4)
+        self.voice_cb.bind("<<ComboboxSelected>>", lambda e: self._on_voice())
+        self.note = ttk.Label(self, foreground="#666")
+        self.note.grid(row=2, column=1, columnspan=4, sticky="w", padx=4, pady=(0, 4))
+        self.columnconfigure(4, weight=1)
+        self.set_language(settings.get(f"{key}_lang") or app.lang_code.get())
+
+    def set_language(self, code):
+        codes = [c for c, _ in core.LANGUAGES]
+        self.lang_cb.current(codes.index(code) if code in codes else 0)
+        self._fill()
+
+    def code(self):
+        return core.LANGUAGES[self.lang_cb.current()][0]
+
+    def _fill(self):
+        code = self.code()
+        self.voices = core.VOICES[code]
+        self.voice_cb.config(values=[v["label"] for v in self.voices])
+        want = self.voices_by_lang.get(code)
+        if not any(v["id"] == want for v in self.voices):
+            want = lv.default_voice(code)["id"]
+        self.voice_cb.current(next(i for i, v in enumerate(self.voices) if v["id"] == want))
+        self.note.config(text=App._voice_note(self.voices[self.voice_cb.current()]))
+
+    def _on_voice(self):
+        v = self.voices[self.voice_cb.current()]
+        self.voices_by_lang[self.code()] = v["id"]
+        self.note.config(text=App._voice_note(v))
+        self.app._persist()
+
+    def get(self):
+        """(language code, voice dict, speed)."""
+        return self.code(), self.voices[self.voice_cb.current()], round(self.speed.get(), 2)
+
+    def state(self):
+        return {f"{self.key}_voices": self.voices_by_lang, f"{self.key}_speed": round(self.speed.get(), 2),
+                f"{self.key}_lang": self.code()}
 
 
 if __name__ == "__main__":
