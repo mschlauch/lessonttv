@@ -344,7 +344,10 @@ class App(tk.Tk):
     def _fail(self, e, title="Could not generate speech"):
         self._finish()
         self._set_status("Error.")
-        messagebox.showerror(title, str(e))
+        if isinstance(e, core.ManualDownloadError):
+            ManualDownloadDialog(self, e)
+        else:
+            messagebox.showerror(title, str(e))
 
     # -------------------------------------------------------- idle handling
     def _arm_idle(self):
@@ -500,9 +503,16 @@ class App(tk.Tk):
             self.last_video = videos[-1]
             self._v_update_play()
         if bad:
-            lines = "\n".join(f"- {r[2]}: {r[3]}" for r in bad[:6])
+            short = lambda err: ("the voice could not be downloaded (see the next window)"
+                                 if isinstance(err, core.ManualDownloadError) else err)
+            lines = "\n".join(f"- {r[2]}: {short(r[3])}" for r in bad[:6])
             more = f"\n(+{len(bad) - 6} more)" if len(bad) > 6 else ""
             messagebox.showwarning("Some items failed", f"{len(ok)} done, {len(bad)} failed:\n{lines}{more}")
+            seen = set()
+            for r in bad:
+                if isinstance(r[3], core.ManualDownloadError) and r[3].folder not in seen:
+                    seen.add(r[3].folder)
+                    ManualDownloadDialog(self, r[3])
 
     # --------------------------------------------------------- lecture video
     def _build_video(self, tab):
@@ -1052,6 +1062,43 @@ class App(tk.Tk):
             except OSError:
                 pass
         self.destroy()
+
+
+class ManualDownloadDialog(tk.Toplevel):
+    """Shows how to download a voice by hand: selectable text, links, and the target folder."""
+
+    def __init__(self, app, err):
+        super().__init__(app)
+        self.app, self.err = app, err
+        self.title("Voice could not be downloaded")
+        self.transient(app)
+        txt = tk.Text(self, wrap="word", width=78, height=24, font=("TkDefaultFont", 11),
+                      padx=10, pady=10, relief="flat")
+        txt.insert("1.0", str(err))
+        # Read-only, but text can still be selected and copied.
+        txt.bind("<Key>", lambda e: None if (e.state & 0x4 or e.state & 0x8) and e.keysym.lower() in ("c", "a")
+                 else "break")
+        bar = ttk.Frame(self)
+        bar.pack(side="bottom", fill="x", padx=8, pady=(0, 8))
+        sb = ttk.Scrollbar(self, orient="vertical", command=txt.yview)
+        txt.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y", pady=(8, 4))
+        txt.pack(fill="both", expand=True, padx=(8, 0), pady=(8, 4))
+        ttk.Button(bar, text="Open download links", command=self._open_links).pack(side="left")
+        ttk.Button(bar, text="Open folder", command=lambda: app._open_path(err.folder)).pack(side="left", padx=6)
+        ttk.Button(bar, text="Copy text", command=self._copy).pack(side="left")
+        ttk.Button(bar, text="Close", command=self.destroy).pack(side="right")
+        self.focus_set()
+
+    def _open_links(self):
+        import webbrowser
+        for _, url in self.err.files:
+            webbrowser.open(url)
+
+    def _copy(self):
+        self.clipboard_clear()
+        self.clipboard_append(str(self.err))
+        self.app._set_status("Instructions copied to the clipboard.")
 
 
 class VoicePicker(ttk.Frame):

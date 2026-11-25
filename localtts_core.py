@@ -17,6 +17,7 @@ Synthesis runs in a separate process so that
 import os
 import re
 import sys
+import ssl
 import json
 import time
 import wave
@@ -320,6 +321,57 @@ class NeedsDownload(Exception):
     pass
 
 
+class CertificateError(RuntimeError):
+    """HTTPS certificate check failed (e.g. no CA list in the packaged Mac app, or a network
+    that inspects HTTPS). Callers turn this into instructions for a manual download."""
+
+
+def _is_cert_error(e):
+    reason = getattr(e, "reason", e)
+    return isinstance(reason, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(e)
+
+
+class ManualDownloadError(RuntimeError):
+    """A voice could not be downloaded automatically; str() holds instructions for the user,
+    .files the (file name, URL) pairs and .folder where to put them."""
+
+    def __init__(self, files, folder, reason=""):
+        super().__init__(manual_download_message(files, folder, reason))
+        self.files, self.folder = files, folder
+
+
+def manual_download_message(files, folder, reason=""):
+    """User instructions when a download failed the certificate check.
+    files: list of (file name, URL) still missing."""
+    if sys.platform == "darwin":
+        how = ("On a Mac: in the Finder press Cmd+Shift+G (Go > Go to Folder), paste the folder "
+               "path above and press Return. Then move the downloaded file(s) there.")
+    elif sys.platform.startswith("win"):
+        how = "On Windows: paste the folder path above into the address bar of File Explorer."
+    else:
+        how = "Open the folder above in your file manager" + (
+            " (it is hidden: its name starts with a dot; Ctrl+L lets you type the path)." if "/." in folder else ".")
+    lines = ["The voice could not be downloaded: this computer could not verify the security "
+             "certificate of the download server. Your internet connection itself is probably fine.",
+             "",
+             "What you can do:",
+             "",
+             "1. Use an online voice instead: pick a voice marked \"Edge (online)\". Good for previews "
+             "(your text is sent to Microsoft).",
+             "",
+             "2. Download the file(s) yourself in a web browser and put them into this folder "
+             "(it has already been created):",
+             "",
+             f"   {folder}",
+             ""]
+    for name, url in files:
+        lines += [f"   - {name}", f"     {url}"]
+    lines += ["", how, "Then try again - the app finds the files and uses them offline."]
+    if reason:
+        lines += ["", f"(Technical detail: {reason})"]
+    return "\n".join(lines)
+
+
 def _download(url, dest, cb=None):
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     tmp = dest + ".part"
@@ -337,11 +389,22 @@ def _download(url, dest, cb=None):
                 if cb:
                     cb(got, total)
     except urllib.error.HTTPError:
+        _remove_quietly(tmp)
         raise                                    # callers handle "not found" themselves
     except (urllib.error.URLError, OSError) as e:
+        _remove_quietly(tmp)
+        if _is_cert_error(e):
+            raise CertificateError(str(getattr(e, "reason", e)))
         raise RuntimeError(f"Could not download {os.path.basename(dest)} "
                            f"({getattr(e, 'reason', e)}). Check your internet connection.")
     os.replace(tmp, dest)
+
+
+def _remove_quietly(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 def kokoro_paths():
@@ -355,12 +418,17 @@ def ensure_kokoro(progress=None):
     if have:
         return have
     out = []
+    folder = os.path.join(home_dir(), "kokoro")
     for i, n in enumerate(KOKORO_FILES):
-        dest = os.path.join(home_dir(), "kokoro", n)
+        dest = os.path.join(folder, n)
         if not os.path.isfile(dest):
-            _download(KOKORO_BASE + n, dest,
-                      (lambda g, t, i=i: progress and t and
-                       progress((i + g / t) / len(KOKORO_FILES), f"Downloading Kokoro model ({n})")))
+            try:
+                _download(KOKORO_BASE + n, dest,
+                          (lambda g, t, i=i: progress and t and
+                           progress((i + g / t) / len(KOKORO_FILES), f"Downloading Kokoro model ({n})")))
+            except CertificateError as e:
+                missing = [(m, KOKORO_BASE + m) for m in KOKORO_FILES if not os.path.isfile(os.path.join(folder, m))]
+                raise ManualDownloadError(missing, folder, str(e)) from None
         out.append(dest)
     return out
 
@@ -392,6 +460,10 @@ def ensure_piper(voice, progress=None):
             _download(url + ".onnx", os.path.join(d, stem + ".onnx"),
                       lambda g, t: progress and t and progress(g / t, f"Downloading voice {voice['name']}"))
             return os.path.join(d, stem + ".onnx"), os.path.join(d, stem + ".onnx.json")
+        except CertificateError as e:
+            files = [(stem + ext, url + ext) for ext in (".onnx", ".onnx.json")
+                     if not os.path.isfile(os.path.join(d, stem + ext))]
+            raise ManualDownloadError(files, d, str(e)) from None
         except urllib.error.HTTPError as e:
             errors.append(f"{q}: HTTP {e.code}")
             for ext in (".onnx.json", ".onnx", ".onnx.part"):   # clean partial files

@@ -110,7 +110,8 @@ def run(items, folder, synth, level, ext=".wav", on_progress=None, should_stop=N
             if stop():
                 cancelled = True
                 break
-            results.append((i, False, names[i], str(e)))
+            # Keep the download error itself: the window offers its links and folder.
+            results.append((i, False, names[i], e if isinstance(e, core.ManualDownloadError) else str(e)))
     try:
         os.remove(tmp)
     except OSError:

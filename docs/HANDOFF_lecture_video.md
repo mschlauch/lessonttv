@@ -104,3 +104,14 @@ books - heading detection is heuristic), scanned PDFs (rejected with an OCR hint
 - NOT verified: the new Edge voice names (from memory, like the existing ones - check with
   `edge_tts.list_voices()`), and every new Piper voice (download + sound) - only the catalog is checked.
   `sv_SE-alma` and `lt_LT-reginute1` are not in that VOICES.md; kept, but check they exist on Hugging Face.
+
+## Known issue: downloads in the packaged Mac app (certificate check)
+
+On a colleague's Mac, the first Kokoro download failed with `CERTIFICATE_VERIFY_FAILED`. Cause (most
+likely): the python.org/setup-python build of Python on macOS does not use the Keychain, and the
+packaged app has no CA list, so `urllib` cannot verify GitHub/Hugging Face. Edge is not affected
+(edge-tts passes certifi's CA list itself). Only the error handling was changed so far:
+`core.ManualDownloadError` (files + folder) and `ManualDownloadDialog` in the GUI explain the two
+workarounds (use an Edge voice; download the files in a browser into the shown folder, which is
+created). Proper fix not done yet (owner's decision): use `truststore` (OS trust store) with `certifi`
+as fallback in `core._download`, and let `--selftest` make one real HTTPS request.

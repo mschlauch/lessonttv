@@ -329,6 +329,63 @@ class Batch(unittest.TestCase):
         self.assertEqual(started, [0, 1, 2, 3], "items must run in list order")
 
 
+class DownloadCertificateError(unittest.TestCase):
+    """A failed HTTPS certificate check (seen in the packaged Mac app) gives manual instructions."""
+
+    def setUp(self):
+        import ssl
+        import urllib.error
+        import urllib.request
+        self.home = tempfile.mkdtemp(dir=TMP)
+        self.old_home = os.environ.get("LOCALTTS_DIR")
+        os.environ["LOCALTTS_DIR"] = self.home
+        self.old_urlopen = urllib.request.urlopen
+
+        def fail(*a, **k):
+            raise urllib.error.URLError(ssl.SSLCertVerificationError(
+                1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate"))
+        urllib.request.urlopen = fail
+
+    def tearDown(self):
+        import urllib.request
+        urllib.request.urlopen = self.old_urlopen
+        os.environ["LOCALTTS_DIR"] = self.old_home
+
+    def test_kokoro(self):
+        with self.assertRaises(RuntimeError) as e:
+            core.ensure_kokoro()
+        msg = str(e.exception)
+        folder = os.path.join(self.home, "kokoro")
+        self.assertTrue(os.path.isdir(folder), "folder must exist for the manual download")
+        self.assertIn(folder, msg)
+        self.assertIn("Edge (online)", msg)
+        for n in core.KOKORO_FILES:
+            self.assertIn(core.KOKORO_BASE + n, msg)
+        self.assertNotIn("Check your internet connection", msg)
+        self.assertEqual(os.listdir(folder), [], "no partial files left behind")
+        self.assertIsInstance(e.exception, core.ManualDownloadError)
+        self.assertEqual(e.exception.folder, folder)
+        self.assertEqual([n for n, _ in e.exception.files], list(core.KOKORO_FILES))
+        print("\n" + msg)
+
+    def test_piper(self):
+        voice = core.VOICE_BY_ID["p:pt_PT-tugão-medium"]
+        with self.assertRaises(RuntimeError) as e:
+            core.ensure_piper(voice)
+        msg = str(e.exception)
+        self.assertIn(os.path.join(self.home, "piper"), msg)
+        self.assertIn("pt_PT-tugão-medium.onnx.json", msg)
+        self.assertIn("tug%C3%A3o/medium/pt_PT-tug%C3%A3o-medium.onnx", msg)
+
+    def test_other_errors_unchanged(self):
+        import urllib.error
+        import urllib.request
+        urllib.request.urlopen = lambda *a, **k: (_ for _ in ()).throw(urllib.error.URLError("no route"))
+        with self.assertRaises(RuntimeError) as e:
+            core.ensure_kokoro()
+        self.assertIn("Check your internet connection", str(e.exception))
+
+
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
